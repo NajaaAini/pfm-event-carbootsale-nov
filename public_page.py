@@ -2,12 +2,17 @@ import streamlit as st
 import pandas as pd
 import re
 from urllib.parse import quote
+from datetime import datetime
 from streamlit_gsheets import GSheetsConnection
 from style import apply_style
-from components import page_header, load_sheet_safe
+from components import page_header, load_sheet_safe, upload_payment_proof
 
+st.set_page_config(page_title="Upload Bukti Bayaran", layout="wide")
 apply_style()
 page_header()
+
+st.title("📤 Upload Bukti Bayaran")
+st.caption("Bukti bayaran akan disimpan automatik ke Google Drive mengikut kategori anda.")
 
 # ============================================================
 # KONFIGURASI
@@ -21,9 +26,11 @@ COL_ADDON = "ADD ON"
 
 PROOF_COL = "Upload Bukti Bayaran"
 
-VALID_STATUSES = ["Pending", "Approved", "Rejected", "Cancelled"]
+FB_CATEGORIES = [
+    "Local Food", "Dessert", "Coffee/Air", "Grill and BBQ",
+    "Deep-Fry", "Italian/Western Food", "Japanese Food", "Chinese Food",
+]
 
-# Admin WhatsApp
 ADMIN_WA_NUMBER = "601157727459"
 
 
@@ -31,7 +38,6 @@ ADMIN_WA_NUMBER = "601157727459"
 # HELPER — WhatsApp
 # ============================================================
 def whatsapp_button(label, message):
-    """Render butang WhatsApp dengan mesej pre-filled."""
     wa_url = f"https://wa.me/{ADMIN_WA_NUMBER}?text={quote(message)}"
     st.markdown(f"""
     <a href="{wa_url}" target="_blank" style="
@@ -50,23 +56,90 @@ def whatsapp_button(label, message):
 
 
 # ============================================================
-# HELPER — Normalize Status
+# HELPER — NOTIS PEMBAYARAN
 # ============================================================
-def normalize_status(raw):
-    if raw is None or pd.isna(raw) or str(raw).strip() == "":
-        return "Pending"
-    s = str(raw).strip().title()
-    aliases = {
-        "Menunggu": "Pending",
-        "Waiting": "Pending",
-        "New": "Pending",
-        "Approve": "Approved",
-        "Reject": "Rejected",
-        "Cancel": "Cancelled",
-        "Canceled": "Cancelled",
-    }
-    s = aliases.get(s, s)
-    return s if s in VALID_STATUSES else "Pending"
+def payment_notice():
+    st.markdown("""
+    <div style="
+        background-color: #fef2f2;
+        border: 2px solid #fca5a5;
+        border-radius: 12px;
+        padding: 1.5rem 1.75rem;
+        margin-bottom: 1.5rem;
+    ">
+        <div style="
+            font-size: 1rem;
+            font-weight: 700;
+            color: #991b1b;
+            margin-bottom: 0.85rem;
+            line-height: 1.4;
+        ">❗️ NOTIS PEMBAYARAN TAPAK VENDOR PFM MEGA CARBOOT SALE ❗️</div>
+
+        <div style="
+            color: #44403c;
+            font-size: 0.9rem;
+            line-height: 1.6;
+            margin-bottom: 1rem;
+        ">
+            Sila buat bayaran tapak mengikut kategori yang dipilih.
+            Untuk Carboot tak disediakan lampu dan elektrik.
+        </div>
+
+        <div style="
+            background-color: #ffffff;
+            border: 1px solid #fecaca;
+            border-radius: 8px;
+            padding: 1rem 1.25rem;
+            margin-bottom: 1rem;
+        ">
+            <div style="
+                font-size: 0.8rem;
+                color: #78716c;
+                text-transform: uppercase;
+                letter-spacing: 0.5px;
+                font-weight: 600;
+                margin-bottom: 0.6rem;
+            ">Maklumat Pembayaran</div>
+
+            <div style="
+                display: grid;
+                gap: 0.4rem;
+                font-size: 0.9rem;
+                color: #292524;
+            ">
+                <div>
+                    <span style="color: #78716c; display: inline-block; min-width: 110px;">🏦 Bank</span>
+                    <b>MAYBANK</b>
+                </div>
+                <div>
+                    <span style="color: #78716c; display: inline-block; min-width: 110px;">👤 Nama Akaun</span>
+                    <b>PRINTHERO MERCHANDISE SDN. BHD.</b>
+                </div>
+                <div>
+                    <span style="color: #78716c; display: inline-block; min-width: 110px;">🔢 No. Akaun</span>
+                    <b style="font-size: 1rem; letter-spacing: 1px;">557054621057</b>
+                </div>
+                <div>
+                    <span style="color: #78716c; display: inline-block; min-width: 110px;">📝 Remark</span>
+                    <b>PFMCBS (4 digit terakhir No. Telefon)</b>
+                </div>
+                <div>
+                    <span style="color: #78716c; display: inline-block; min-width: 110px;">📋 Contoh</span>
+                    <b>PFMCBS1234</b>
+                </div>
+            </div>
+        </div>
+
+        <div style="
+            color: #44403c;
+            font-size: 0.9rem;
+            line-height: 1.6;
+        ">
+            Sila upload resit pembayaran di bawah ini dan pilih jenis lot untuk pengesahan.<br>
+            <b>Terima Kasih</b>
+        </div>
+    </div>
+    """, unsafe_allow_html=True)
 
 
 # ============================================================
@@ -80,6 +153,15 @@ def get_category_price(vendor_type):
             return float(st.secrets["event"]["price_fb"])
         else:
             return float(st.secrets["event"]["price_others"])
+    except Exception:
+        return 0.0
+
+
+def get_deposit(vendor_type):
+    try:
+        if vendor_type == "F&B":
+            return float(st.secrets["event"]["deposit_fb"])
+        return 0.0
     except Exception:
         return 0.0
 
@@ -115,620 +197,291 @@ def format_rm(amount):
 
 
 # ============================================================
-# TITLE
+# LOAD VENDORS
 # ============================================================
-st.markdown("""
-<div style="
-    display: flex;
-    align-items: center;
-    gap: 0.75rem;
-    margin-bottom: 0.5rem;
-">
-    <div style="
-        width: 44px;
-        height: 44px;
-        background-color: #f2ebe0;
-        border-radius: 10px;
-        display: flex;
-        align-items: center;
-        justify-content: center;
-        font-size: 1.4rem;
-    ">🔍</div>
-    <h1 style="
-        margin: 0;
-        color: #292524;
-        font-weight: 600;
-        font-size: 1.85rem;
-        border: none;
-        padding: 0;
-    ">Semak Kelayakan</h1>
-</div>
-""", unsafe_allow_html=True)
-
-st.markdown("""
-<p style="
-    color: #78716c;
-    font-size: 0.95rem;
-    margin-bottom: 2rem;
-">Masukkan No. Pendaftaran Kenderaan/Plate Number anda untuk semak status permohonan.</p>
-""", unsafe_allow_html=True)
-
-# ============================================================
-# LOAD DATA
-# ============================================================
-@st.cache_data(ttl=60, show_spinner="Memuatkan data...")
-def load_vendors():
-    conn = st.connection("gsheets", type=GSheetsConnection)
-    try:
-        return conn.read(worksheet="Vendors", ttl=60), None
-    except Exception as e:
-        return None, str(e)
-
-
-@st.cache_data(ttl=60, show_spinner=False)
-def load_payments():
-    conn = st.connection("gsheets", type=GSheetsConnection)
-    try:
-        return conn.read(worksheet="Payments", ttl=60), None
-    except Exception as e:
-        return None, str(e)
-
-
-df, err = load_vendors()
-
+conn = st.connection("gsheets", type=GSheetsConnection)
+df = load_sheet_safe(conn, "Vendors", ttl=0)
 if df is None:
-    error_msg = (err or "").lower()
-    if "429" in error_msg or "quota" in error_msg:
-        st.warning("""
-        ⏳ **Sistem sedang sibuk.**
-
-        Terlalu banyak permintaan. Sila tunggu **1-2 minit** dan cuba lagi.
-        """)
-        if st.button("🔄 Cuba Lagi"):
-            st.cache_data.clear()
-            st.rerun()
-    else:
-        st.error("⚠️ Sistem tidak dapat memuatkan data. Sila cuba lagi.")
-        with st.expander("Butiran teknikal"):
-            st.code(err)
     st.stop()
 
-df["Status"] = df["Status"].apply(normalize_status)
+if "Paid" not in df.columns:
+    df["Paid"] = False
+df["Paid"] = df["Paid"].fillna(False).astype(bool)
+
 
 # ============================================================
-# SEARCH FORM
+# FORM
 # ============================================================
-with st.form("search"):
-    query = st.text_input(
-        "No. Pendaftaran Kenderaan/Plate Number",
-        placeholder="Contoh: NNA1806"
+with st.form("payment_upload", clear_on_submit=False):
+    plate_input = st.text_input(
+        "No. Pendaftaran Kenderaan / Plate Number",
+        placeholder="Contoh: NNA1806",
+        help="Masukkan no. plate yang sama seperti semasa pendaftaran.",
     ).strip().upper()
 
-    col1, col2, col3 = st.columns([1, 1, 1])
-    with col2:
-        submitted = st.form_submit_button("Semak Status", type="primary", use_container_width=True)
+    uploaded = st.file_uploader(
+        "Pilih gambar bukti bayaran",
+        type=["jpg", "jpeg", "png", "pdf"],
+        help="Format dibenarkan: JPG, PNG, PDF. Saiz maksimum 10MB.",
+    )
+
+    st.markdown("---")
+    submitted = st.form_submit_button(
+        "Hantar Bukti Bayaran", type="primary", use_container_width=True
+    )
+
 
 # ============================================================
-# RESULT
+# PROSES
 # ============================================================
-if submitted and query:
-    result = df[
+if submitted:
+    if not plate_input:
+        st.error("❌ Sila masukkan No. Plate.")
+        st.stop()
+
+    if not uploaded:
+        st.error("❌ Sila pilih fail bukti bayaran.")
+        st.stop()
+
+    MAX_SIZE_MB = 10
+    file_size_mb = uploaded.size / (1024 * 1024)
+    if file_size_mb > MAX_SIZE_MB:
+        st.error(f"❌ Saiz fail terlalu besar ({file_size_mb:.1f} MB). Maksimum {MAX_SIZE_MB} MB.")
+        st.stop()
+
+    normalized_input = plate_input.replace(" ", "").upper()
+    matched = df[
         df[COL_PLATE].astype(str).str.upper().str.replace(" ", "")
-        == query.replace(" ", "")
+        == normalized_input
     ]
 
-    if result.empty:
-        st.divider()
+    if matched.empty:
+        st.error(f"❌ No. Plate **{plate_input}** tidak dijumpai dalam sistem.")
+        st.info("Sila pastikan No. Plate betul, atau daftar terlebih dahulu.")
+        whatsapp_button(
+            "💬 Tanya Admin via WhatsApp",
+            f"Hi! PFM Car Boot Sale — Saya nak tanya pasal pendaftaran (Plate: {plate_input})"
+        )
+        st.stop()
+
+    vendor = matched.iloc[0]
+    vendor_name = str(vendor.get(COL_NAME, ""))
+    status = str(vendor.get("Status", "")).strip().title()
+    vendor_type = str(vendor.get(COL_TYPE, "Car Boot Sales")).strip()
+    fb_category = str(vendor.get(COL_CAT, "") or "").strip()
+
+    # ---- Semak status ----
+    if status == "Pending":
+        st.warning(
+            f"⚠️ Permohonan anda masih **Menunggu Semakan**. "
+            "Bukti bayaran hanya boleh dihantar selepas permohonan diluluskan."
+        )
+        whatsapp_button(
+            "💬 Tanya Admin via WhatsApp",
+            f"Hi! PFM Car Boot Sale — Permohonan saya masih pending (Plate: {plate_input})"
+        )
+        st.stop()
+
+    if status == "Rejected":
+        st.error(
+            "❌ Permohonan anda **Tidak Berjaya**. "
+            "Sila hubungi admin untuk maklumat lanjut."
+        )
+        whatsapp_button(
+            "💬 Tanya Admin via WhatsApp",
+            f"Hi! PFM Car Boot Sale — Nak tanya pasal permohonan yang ditolak (Plate: {plate_input})"
+        )
+        st.stop()
+
+    if status == "Cancelled":
+        st.error(
+            "🚫 Slot anda telah **Dibatalkan** kerana bayaran tidak diterima "
+            "sebelum tarikh akhir. Hubungi admin jika ini satu kesilapan."
+        )
+        whatsapp_button(
+            "💬 Tanya Admin via WhatsApp",
+            f"Hi! PFM Car Boot Sale — Slot saya telah dibatalkan (Plate: {plate_input})"
+        )
+        st.stop()
+
+    if status != "Approved":
+        st.error(f"⚠️ Status tidak dikenali: **{status}**. Sila hubungi admin.")
+        whatsapp_button(
+            "💬 Tanya Admin via WhatsApp",
+            f"Hi! PFM Car Boot Sale — Status tidak dikenali (Plate: {plate_input})"
+        )
+        st.stop()
+
+    st.success(f"✅ Vendor dijumpai: **{vendor_name}** ({vendor_type})")
+
+    # === NOTIS PEMBAYARAN ===
+    payment_notice()
+
+    # ============================================================
+    # KIRA TOTAL HARGA
+    # ============================================================
+    cat_price = get_category_price(vendor_type)
+    deposit_amount = get_deposit(vendor_type)
+    addon_str_raw = str(vendor.get(COL_ADDON, "") or "")
+    addon_price = get_addon_price(addon_str_raw)
+    addon_items = get_addon_items(addon_str_raw)
+    total_price = cat_price + deposit_amount + addon_price
+
+    if total_price > 0:
+        breakdown_html = f'<div>📦 {vendor_type}: <b>{format_rm(cat_price)}</b></div>'
+        if deposit_amount > 0:
+            breakdown_html += f'<div>🔒 Deposit (Refundable): <b>{format_rm(deposit_amount)}</b></div>'
+        if addon_price > 0:
+            breakdown_html += f'<div>➕ Add On: <b>{format_rm(addon_price)}</b></div>'
+
         st.markdown(f"""
         <div style="
-            background-color: #fef3c7;
-            border: 1px solid #fde68a;
+            background-color: #fef9ec;
+            border: 2px solid #f0e6d6;
             border-radius: 12px;
             padding: 1.5rem 1.75rem;
-            margin-top: 1rem;
+            margin: 1rem 0 0.75rem 0;
         ">
             <div style="
-                font-size: 1.05rem;
-                font-weight: 600;
-                color: #78350f;
+                font-size: 0.8rem; color: #78716c;
+                text-transform: uppercase; letter-spacing: 0.5px;
                 margin-bottom: 0.5rem;
-            ">❌ Tiada permohonan dijumpai</div>
+            ">💰 Jumlah Perlu Dibayar</div>
             <div style="
-                color: #78350f;
-                font-size: 0.95rem;
-                margin-bottom: 1.25rem;
-            "><b>{query}</b> tidak ada dalam sistem. Sila daftar terlebih dahulu atau hubungi admin.</div>
-            <a href="https://forms.gle/bheUdQTvKRTCns4eA" target="_blank" style="
-                display: block;
-                background-color: #78350f;
-                color: #ffffff;
-                text-align: center;
-                padding: 0.85rem 1.5rem;
-                border-radius: 8px;
-                text-decoration: none;
-                font-weight: 600;
-                font-size: 1rem;
-            ">📝 Daftar Sekarang</a>
+                font-size: 2.25rem; font-weight: 700;
+                color: #78350f; margin-bottom: 0.75rem;
+                line-height: 1;
+            ">{format_rm(total_price)}</div>
+            <div style="
+                font-size: 0.85rem; color: #57534e;
+                border-top: 1px dashed #e8dcc7;
+                padding-top: 0.75rem;
+                display: grid; gap: 0.35rem;
+            ">
+                {breakdown_html}
+            </div>
         </div>
         """, unsafe_allow_html=True)
 
-        # Butang WhatsApp — untuk yang tak jumpa
-        whatsapp_button(
-            "💬 Ada Masalah? Hubungi Admin",
-            f"Hi! PFM Car Boot Sale — Saya tak jumpa No. Plate {query} dalam sistem"
-        )
+        if addon_items:
+            with st.expander("📋 Detail Add On"):
+                for name, price in addon_items:
+                    st.markdown(f"- {name}: **{format_rm(price)}**")
 
-    else:
-        row = result.iloc[0]
-        status = str(row["Status"]).strip()
-        paid = bool(row["Paid"]) if pd.notna(row["Paid"]) else False
-        plate_norm = str(row[COL_PLATE]).upper().replace(" ", "")
-
-        st.divider()
-
-        # ====================================================
-        # INFO CARD
-        # ====================================================
-        fb_row = ""
-        if pd.notna(row.get(COL_CAT)) and str(row[COL_CAT]).strip():
-            fb_row = (
-                f'<div style="color:#44403c;">'
-                f'<span style="color:#78716c;">F&B Category:</span> '
-                f'<b style="color:#292524;">{row[COL_CAT]}</b>'
-                f'</div>'
+        if deposit_amount > 0:
+            st.info(
+                f"💡 **Sila buat bayaran sebanyak {format_rm(total_price)}** "
+                f"({format_rm(cat_price + addon_price)} bayaran + "
+                f"{format_rm(deposit_amount)} deposit). "
+                f"**Deposit {format_rm(deposit_amount)} akan dipulangkan selepas event.**"
             )
-
-        info_card_html = (
-            f'<div style="background-color:#ffffff;border:1px solid #e8dcc7;'
-            f'border-radius:12px;padding:1.5rem 1.75rem;margin-bottom:1.5rem;">'
-            f'<div style="font-size:0.8rem;color:#78716c;text-transform:uppercase;'
-            f'letter-spacing:0.5px;margin-bottom:0.5rem;">Maklumat Permohonan</div>'
-            f'<div style="font-size:1.3rem;font-weight:600;color:#292524;'
-            f'margin-bottom:0.75rem;">{row[COL_PLATE]}</div>'
-            f'<div style="display:grid;gap:0.5rem;">'
-            f'<div style="color:#44403c;"><span style="color:#78716c;">Nama:</span> '
-            f'<b style="color:#292524;">{row[COL_NAME]}</b></div>'
-            f'<div style="color:#44403c;"><span style="color:#78716c;">Kategori:</span> '
-            f'<b style="color:#292524;">{row[COL_TYPE]}</b></div>'
-            f'{fb_row}'
-            f'</div>'
-            f'</div>'
-        )
-
-        st.markdown(info_card_html, unsafe_allow_html=True)
-
-        # ====================================================
-        # CHECK: BUKTI BAYARAN DAH UPLOAD?
-        # ====================================================
-        has_uploaded_proof = False
-        proof_upload_time = ""
-        proof_url = ""
-        folder_url = ""
-
-        if status == "Approved" and not paid:
-            payments, pay_err = load_payments()
-            if payments is not None and not payments.empty:
-                if "Plate Number" in payments.columns:
-                    matched_pay = payments[
-                        payments["Plate Number"].astype(str).str.upper().str.replace(" ", "")
-                        == plate_norm
-                    ]
-                    if not matched_pay.empty:
-                        has_uploaded_proof = True
-                        try:
-                            matched_pay = matched_pay.sort_values("Timestamp", ascending=False)
-                        except Exception:
-                            pass
-                        latest = matched_pay.iloc[0]
-                        proof_upload_time = str(latest.get("Timestamp", "") or "")
-                        proof_url = str(latest.get(PROOF_COL, "") or "")
-                        folder_url = str(latest.get("FolderUrl", "") or "")
-
-        # ====================================================
-        # STATUS KAD
-        # ====================================================
-
-        # ---------- PENDING ----------
-        if status == "Pending":
-            st.markdown("""
-            <div style="
-                background-color: #fffbeb;
-                border: 1px solid #fde68a;
-                border-radius: 12px;
-                padding: 1.5rem 1.75rem;
-                margin-bottom: 1rem;
-            ">
-                <div style="display: flex;align-items: center;gap: 0.75rem;margin-bottom: 0.75rem;">
-                    <div style="
-                        width: 36px;height: 36px;background-color: #f59e0b;
-                        color: #ffffff;border-radius: 50%;
-                        display: flex;align-items: center;justify-content: center;
-                        font-size: 1.1rem;font-weight: 700;
-                    ">⏳</div>
-                    <div style="font-size: 1.15rem;font-weight: 700;color: #78350f;">
-                        Permohonan Sedang Disemak
-                    </div>
-                </div>
-                <div style="color: #78350f;font-size: 0.95rem;">
-                    Permohonan anda telah diterima dan sedang dalam proses semakan admin. Sila semak semula dalam <b>1-2 hari</b>.
-                </div>
-            </div>
-            """, unsafe_allow_html=True)
-
-            st.info("📌 **Belum perlu buat bayaran.** Bayaran hanya diperlukan selepas permohonan anda diluluskan.")
-
-            whatsapp_button(
-                "💬 Ada Pertanyaan? Hubungi Admin",
-                f"Hi! PFM Car Boot Sale — Permohonan saya masih pending (Plate: {query})"
-            )
-
-        # ---------- REJECTED ----------
-        elif status == "Rejected":
-            st.markdown("""
-            <div style="
-                background-color: #fef2f2;
-                border: 1px solid #fecaca;
-                border-radius: 12px;
-                padding: 1.5rem 1.75rem;
-                margin-bottom: 1rem;
-            ">
-                <div style="display: flex;align-items: center;gap: 0.75rem;margin-bottom: 0.75rem;">
-                    <div style="
-                        width: 36px;height: 36px;background-color: #dc2626;
-                        color: #ffffff;border-radius: 50%;
-                        display: flex;align-items: center;justify-content: center;
-                        font-size: 1.1rem;font-weight: 700;
-                    ">✕</div>
-                    <div style="font-size: 1.15rem;font-weight: 700;color: #991b1b;">
-                        Permohonan Tidak Berjaya
-                    </div>
-                </div>
-                <div style="color: #991b1b;font-size: 0.95rem;">
-                    Maaf, permohonan anda tidak dipilih untuk event ini. Hubungi admin untuk maklumat lanjut.
-                </div>
-            </div>
-            """, unsafe_allow_html=True)
-
-            # Papar sebab penolakan (kalau ada)
-            reject_reason = ""
-            if pd.notna(row.get("Notes")) and str(row.get("Notes")).strip():
-                reject_reason = str(row.get("Notes")).strip()
-
-            if reject_reason:
-                safe_reason = (
-                    reject_reason
-                    .replace("&", "&amp;")
-                    .replace("<", "&lt;")
-                    .replace(">", "&gt;")
-                )
-                st.markdown(f"""
-                <div style="
-                    background-color: #ffffff;
-                    border: 1px solid #fecaca;
-                    border-left: 4px solid #dc2626;
-                    border-radius: 8px;
-                    padding: 1.1rem 1.35rem;
-                    margin-bottom: 1rem;
-                ">
-                    <div style="
-                        font-size: 0.78rem;
-                        color: #78716c;
-                        text-transform: uppercase;
-                        letter-spacing: 0.5px;
-                        font-weight: 600;
-                        margin-bottom: 0.5rem;
-                    ">📋 Sebab Penolakan</div>
-                    <div style="
-                        color: #292524;
-                        font-size: 0.95rem;
-                        line-height: 1.6;
-                    ">{safe_reason}</div>
-                </div>
-                """, unsafe_allow_html=True)
-
-            whatsapp_button(
-                "💬 Tanya Admin via WhatsApp",
-                f"Hi! PFM Car Boot Sale — Nak tanya pasal permohonan yang ditolak (Plate: {query})"
-            )
-
-        # ---------- CANCELLED ----------
-        elif status == "Cancelled":
-            st.markdown("""
-            <div style="
-                background-color: #fef2f2;
-                border: 1px solid #fecaca;
-                border-radius: 12px;
-                padding: 1.5rem 1.75rem;
-                margin-bottom: 1rem;
-            ">
-                <div style="display: flex;align-items: center;gap: 0.75rem;margin-bottom: 0.75rem;">
-                    <div style="
-                        width: 36px;height: 36px;background-color: #dc2626;
-                        color: #ffffff;border-radius: 50%;
-                        display: flex;align-items: center;justify-content: center;
-                        font-size: 1.1rem;font-weight: 700;
-                    ">🚫</div>
-                    <div style="font-size: 1.15rem;font-weight: 700;color: #991b1b;">
-                        Slot Dibatalkan
-                    </div>
-                </div>
-                <div style="color: #991b1b;font-size: 0.95rem;">
-                    Slot anda telah dibatalkan kerana bayaran tidak diterima sebelum tarikh akhir. Hubungi admin jika ada masalah.
-                </div>
-            </div>
-            """, unsafe_allow_html=True)
-
-            whatsapp_button(
-                "💬 Tanya Admin via WhatsApp",
-                f"Hi! PFM Car Boot Sale — Slot saya telah dibatalkan (Plate: {query})"
-            )
-
-        # ---------- APPROVED ----------
-        elif status == "Approved":
-
-            # CASE 1: Approved + BELUM Paid + DAH UPLOAD BUKTI
-            if not paid and has_uploaded_proof:
-                st.markdown(f"""
-                <div style="
-                    background-color: #eff6ff;
-                    border: 1px solid #bfdbfe;
-                    border-radius: 12px;
-                    padding: 1.5rem 1.75rem;
-                    margin-bottom: 1rem;
-                ">
-                    <div style="display: flex;align-items: center;gap: 0.75rem;margin-bottom: 0.75rem;">
-                        <div style="
-                            width: 36px;height: 36px;background-color: #2563eb;
-                            color: #ffffff;border-radius: 50%;
-                            display: flex;align-items: center;justify-content: center;
-                            font-size: 1.1rem;font-weight: 700;
-                        ">📤</div>
-                        <div style="font-size: 1.15rem;font-weight: 700;color: #1e40af;">
-                            Bukti Bayaran Telah Dihantar
-                        </div>
-                    </div>
-                    <div style="color: #1e40af;font-size: 0.95rem;">
-                        Terima kasih! Bukti bayaran anda telah diterima
-                        {'pada <b>' + proof_upload_time + '</b>' if proof_upload_time else ''}.
-                        Admin akan semak dan sahkan slot anda tidak lama lagi.
-                    </div>
-                </div>
-                """, unsafe_allow_html=True)
-
-                st.info(
-                    "📌 **Seterusnya:** Sila tunggu pengesahan admin dan jangan lupa untuk join group whatsapp."
-                )
-
-                if proof_url or folder_url:
-                    with st.expander("📎 Lihat bukti yang dihantar"):
-                        if proof_url:
-                            st.markdown(f"[📄 Fail Bukti Bayaran]({proof_url})")
-                            # Preview hanya untuk imej, bukan PDF
-                            if proof_url.lower().endswith(".pdf"):
-                                st.caption("📄 Fail PDF — klik link untuk buka")
-                            else:
-                                try:
-                                    st.image(proof_url, use_container_width=True)
-                                except Exception:
-                                    st.caption("Klik link untuk buka fail")
-                        if folder_url:
-                            st.markdown(f"[📁 Folder Bukti]({folder_url})")
-
-                whatsapp_button(
-                    "💬 Ada Pertanyaan? Hubungi Admin",
-                    f"Hi! PFM Car Boot Sale — Bukti bayaran saya telah dihantar (Plate: {query})"
-                )
-
-            # CASE 2: Approved + BELUM Paid + BELUM UPLOAD
-            elif not paid and not has_uploaded_proof:
-                st.markdown("""
-                <div style="
-                    background-color: #fffbeb;
-                    border: 1px solid #fde68a;
-                    border-radius: 12px;
-                    padding: 1.5rem 1.75rem;
-                    margin-bottom: 1rem;
-                ">
-                    <div style="display: flex;align-items: center;gap: 0.75rem;margin-bottom: 0.75rem;">
-                        <div style="
-                            width: 36px;height: 36px;background-color: #78350f;
-                            color: #ffffff;border-radius: 50%;
-                            display: flex;align-items: center;justify-content: center;
-                            font-size: 1.1rem;font-weight: 700;
-                        ">✓</div>
-                        <div style="font-size: 1.15rem;font-weight: 700;color: #78350f;">
-                            Permohonan Diluluskan
-                        </div>
-                    </div>
-                    <div style="color: #78350f;font-size: 0.95rem;">
-                        Tahniah! Permohonan anda telah diluluskan. Sila buat bayaran dan upload bukti untuk konfirmasi slot anda.
-                    </div>
-                </div>
-                """, unsafe_allow_html=True)
-
-                # KAD HARGA
-                vendor_type = str(row.get(COL_TYPE, "")).strip()
-                cat_price = get_category_price(vendor_type)
-                addon_str_raw = str(row.get(COL_ADDON, "") or "")
-                addon_price = get_addon_price(addon_str_raw)
-                addon_items = get_addon_items(addon_str_raw)
-                total_price = cat_price + addon_price
-
-                if total_price > 0:
-                    breakdown_html = f'<div>📦 {vendor_type}: <b>{format_rm(cat_price)}</b></div>'
-                    if addon_price > 0:
-                        breakdown_html += f'<div>➕ Add On: <b>{format_rm(addon_price)}</b></div>'
-
-                    st.markdown(f"""
-                    <div style="
-                        background-color: #fef9ec;
-                        border: 2px solid #f0e6d6;
-                        border-radius: 12px;
-                        padding: 1.5rem 1.75rem;
-                        margin-bottom: 1rem;
-                    ">
-                        <div style="
-                            font-size: 0.8rem; color: #78716c;
-                            text-transform: uppercase; letter-spacing: 0.5px;
-                            margin-bottom: 0.5rem;
-                        ">💰 Jumlah Perlu Dibayar</div>
-                        <div style="
-                            font-size: 2.25rem; font-weight: 700;
-                            color: #78350f; margin-bottom: 0.75rem;
-                            line-height: 1;
-                        ">{format_rm(total_price)}</div>
-                        <div style="
-                            font-size: 0.85rem; color: #57534e;
-                            border-top: 1px dashed #e8dcc7;
-                            padding-top: 0.75rem;
-                            display: grid; gap: 0.35rem;
-                        ">
-                            {breakdown_html}
-                        </div>
-                    </div>
-                    """, unsafe_allow_html=True)
-
-                    if addon_items:
-                        with st.expander("📋 Detail Add On"):
-                            for name, price in addon_items:
-                                st.markdown(f"- {name}: **{format_rm(price)}**")
-
-                    st.info(
-                        f"💡 **Sila buat bayaran sebanyak {format_rm(total_price)}** sebelum upload bukti."
-                    )
-
-                # Kad penting
-                st.markdown("""
-                <div style="
-                    background-color: #fef2f2;
-                    border: 1px solid #fecaca;
-                    border-radius: 12px;
-                    padding: 1rem 1.25rem;
-                    margin-bottom: 1rem;
-                ">
-                    <div style="color: #991b1b; font-size: 0.9rem; font-weight: 500;">
-                        ⚠️ <b>Penting:</b> Kalau bayaran tidak diterima <b>2 hari sebelum event</b>, slot anda akan dibatalkan automatik.
-                    </div>
-                </div>
-                """, unsafe_allow_html=True)
-
-                # Butang upload
-                try:
-                    st.page_link(
-                        "upload_payment.py",
-                        label="📤  Upload Bukti Bayaran",
-                        use_container_width=True,
-                    )
-                except Exception:
-                    try:
-                        st.link_button(
-                            "📤  Upload Bukti Bayaran",
-                            st.secrets["event"]["payment_form_url"],
-                            use_container_width=True,
-                            type="primary",
-                        )
-                    except AttributeError:
-                        st.markdown(
-                            f"""
-                            <a href="{st.secrets['event']['payment_form_url']}" target="_blank" style="
-                                display: block;
-                                background-color: #78350f;
-                                color: #ffffff;
-                                text-align: center;
-                                padding: 0.85rem 1.5rem;
-                                border-radius: 8px;
-                                text-decoration: none;
-                                font-weight: 600;
-                                font-size: 1rem;
-                                margin-top: 0.5rem;
-                            ">📤 Upload Bukti Bayaran</a>
-                            """,
-                            unsafe_allow_html=True,
-                        )
-
-                # Butang WhatsApp
-                whatsapp_button(
-                    "💬 Ada Pertanyaan? Hubungi Admin",
-                    f"Hi! PFM Car Boot Sale — Nak tanya pasal bayaran (Plate: {query})"
-                )
-
-            # CASE 3: Approved + DAH Paid
-            else:
-                st.markdown("""
-                <div style="
-                    background-color: #f0fdf4;
-                    border: 1px solid #86efac;
-                    border-radius: 12px;
-                    padding: 1.5rem 1.75rem;
-                    margin-bottom: 1rem;
-                ">
-                    <div style="display: flex;align-items: center;gap: 0.75rem;margin-bottom: 0.75rem;">
-                        <div style="
-                            width: 36px;height: 36px;background-color: #16a34a;
-                            color: #ffffff;border-radius: 50%;
-                            display: flex;align-items: center;justify-content: center;
-                            font-size: 1.1rem;font-weight: 700;
-                        ">✓</div>
-                        <div style="font-size: 1.15rem;font-weight: 700;color: #14532d;">
-                            Permohonan Disahkan
-                        </div>
-                    </div>
-                    <div style="color: #166534;font-size: 0.95rem;">
-                        Tahniah! Anda telah berjaya mendaftar dan membuat pembayaran. Sertai kumpulan WhatsApp vendor untuk maklumat lanjut.
-                    </div>
-                </div>
-                """, unsafe_allow_html=True)
-
-                st.markdown("""
-                <div style="
-                    font-size: 1rem;
-                    font-weight: 600;
-                    color: #292524;
-                    margin-top: 1.5rem;
-                    margin-bottom: 0.25rem;
-                ">Sertai WhatsApp Group Vendor</div>
-                <div style="
-                    color: #78716c;
-                    font-size: 0.9rem;
-                    margin-bottom: 1rem;
-                ">Dapatkan maklumat terkini tentang event, susun atur booth, dan update penting.</div>
-                """, unsafe_allow_html=True)
-
-                try:
-                    st.link_button(
-                        "💬  Join WhatsApp Group",
-                        st.secrets["event"]["whatsapp_group"],
-                        use_container_width=True,
-                        type="primary",
-                    )
-                except AttributeError:
-                    st.markdown(
-                        f"""
-                        <a href="{st.secrets['event']['whatsapp_group']}" target="_blank" style="
-                            display: block;
-                            background-color: #78350f;
-                            color: #ffffff;
-                            text-align: center;
-                            padding: 0.85rem 1.5rem;
-                            border-radius: 8px;
-                            text-decoration: none;
-                            font-weight: 600;
-                            font-size: 1rem;
-                        ">Join WhatsApp Group</a>
-                        """,
-                        unsafe_allow_html=True,
-                    )
-
-                st.balloons()
-
-        # ---------- UNKNOWN ----------
         else:
-            st.warning(
-                f"⚠️ Status permohonan tidak dikenali: **{status}**. "
-                "Sila hubungi admin untuk maklumat lanjut."
+            st.info(
+                f"💡 **Sila buat bayaran sebanyak {format_rm(total_price)}** "
+                "sebelum upload bukti bayaran di bawah."
             )
 
-            whatsapp_button(
-                "💬 Hubungi Admin via WhatsApp",
-                f"Hi! PFM Car Boot Sale — Status tidak dikenali (Plate: {query})"
-            )
+        whatsapp_button(
+            "💬 Ada Pertanyaan? Tanya Admin via WhatsApp",
+            f"Hi! PFM Car Boot Sale — Saya nak tanya pasal bayaran (Plate: {plate_input}, Kategori: {vendor_type})"
+        )
+    else:
+        st.warning(
+            "⚠️ Total harga tidak dapat dikira secara automatik. "
+            "Sila hubungi admin untuk jumlah bayaran."
+        )
+        whatsapp_button(
+            "💬 Tanya Admin via WhatsApp",
+            f"Hi! PFM Car Boot Sale — Nak tanya pasal jumlah bayaran (Plate: {plate_input})"
+        )
+
+    # ---- Semak jika sudah upload sebelum ini ----
+    existing_payments = load_sheet_safe(conn, "Payments", ttl=0)
+    if existing_payments is None or existing_payments.empty:
+        existing_payments = pd.DataFrame(
+            columns=["Timestamp", "Plate Number", PROOF_COL, "FolderUrl"]
+        )
+
+    for col in ["Timestamp", "Plate Number", PROOF_COL, "FolderUrl"]:
+        if col not in existing_payments.columns:
+            existing_payments[col] = ""
+
+    already_uploaded = existing_payments[
+        existing_payments["Plate Number"].astype(str).str.upper().str.replace(" ", "")
+        == normalized_input
+    ]
+
+    if not already_uploaded.empty:
+        st.warning(
+            f"⚠️ Anda sudah pernah upload bukti bayaran sebelum ini "
+            f"({len(already_uploaded)} rekod). Upload baru akan **tambah** rekod lama."
+        )
+
+    # ---- Upload ke Google Drive ----
+    with st.spinner("Menghantar ke Google Drive..."):
+        try:
+            parent_folder_id = st.secrets["event"]["payment_proof_folder_id"]
+        except (KeyError, Exception):
+            st.error("❌ Konfigurasi folder Drive tidak dijumpai. Sila hubungi admin.")
+            st.stop()
+
+        file_id, view_url, folder_url = upload_payment_proof(
+            file_bytes=uploaded.getvalue(),
+            plate=plate_input,
+            vendor_type=vendor_type,
+            fb_category=fb_category,
+            parent_folder_id=parent_folder_id,
+            mime_type=uploaded.type or "image/jpeg",
+        )
+
+    if not view_url:
+        st.error("❌ Gagal upload ke Google Drive. Sila cuba lagi atau hubungi admin.")
+        whatsapp_button(
+            "💬 Lapor Masalah ke Admin",
+            f"Hi! PFM Car Boot Sale — Upload bukti bayaran saya gagal (Plate: {plate_input})"
+        )
+        st.stop()
+
+    # ---- Simpan rekod ke sheet Payments ----
+    new_row = pd.DataFrame([{
+        "Timestamp": datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
+        "Plate Number": plate_input,
+        PROOF_COL: view_url,
+        "FolderUrl": folder_url,
+    }])
+    updated_payments = pd.concat([existing_payments, new_row], ignore_index=True)
+
+    try:
+        conn.update(worksheet="Payments", data=updated_payments)
+        st.success("💾 Rekod pembayaran disimpan dalam sistem.")
+    except Exception as e:
+        st.warning(
+            "⚠️ Fail berjaya diupload ke Drive, tapi rekod tidak dapat disimpan "
+            f"dalam sistem. Sila maklumkan admin. (Error: {e})"
+        )
+
+    # ---- Paparkan hasil ----
+    st.markdown("---")
+    st.markdown("### ✅ Bukti Bayaran Berjaya Dihantar")
+    st.markdown(f"**Vendor:** {vendor_name}  \n**No. Plate:** `{plate_input}`")
+    if total_price > 0:
+        st.markdown(f"**Jumlah:** {format_rm(total_price)}")
+    st.markdown(f"**Fail:** [Lihat Bukti]({view_url})")
+    if folder_url:
+        st.markdown(f"**Folder vendor:** [Buka Folder]({folder_url})")
+
+    st.info(
+        "📌 **Seterusnya:** Admin akan semak bukti bayaran anda dan tanda "
+        "'Sudah Bayar' dalam sistem. Sila sertai WhatsApp Group untuk update terkini."
+    )
+
+    whatsapp_button(
+        "💬 Ada Pertanyaan? Tanya Admin via WhatsApp",
+        f"Hi! PFM Car Boot Sale — Bukti bayaran saya telah dihantar (Plate: {plate_input})"
+    )
+
+    if uploaded.type and uploaded.type.startswith("image/"):
+        with st.expander("Lihat gambar yang diupload"):
+            st.image(uploaded, use_container_width=True)
+
+    st.balloons()
