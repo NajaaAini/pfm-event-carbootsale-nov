@@ -113,7 +113,6 @@ def format_phone_display(raw):
 # HELPER — HARGA
 # ============================================================
 def get_category_price(vendor_type):
-    """Harga kategori."""
     try:
         if vendor_type == "Car Boot Sales":
             return float(st.secrets["event"]["price_car_boot"])
@@ -126,17 +125,18 @@ def get_category_price(vendor_type):
 
 
 def get_deposit(vendor_type):
-    """Deposit refundable ikut kategori."""
+    """Deposit refundable — F&B + Others."""
     try:
         if vendor_type == "F&B":
             return float(st.secrets["event"]["deposit_fb"])
+        elif vendor_type == "Arts & Crafts / Toys":
+            return float(st.secrets["event"].get("deposit_others", 100))
         return 0.0
     except Exception:
         return 0.0
 
 
 def get_addon_price(addon_str):
-    """Extract harga ADD ON dari string."""
     if addon_str is None or pd.isna(addon_str):
         return 0.0
     try:
@@ -147,11 +147,15 @@ def get_addon_price(addon_str):
 
 
 def format_rm(amount):
-    """Format RM."""
     try:
         return f"RM {float(amount):,.2f}"
     except (ValueError, TypeError):
         return "RM 0.00"
+
+
+def get_vendor_total(vendor_type, addon_str):
+    """Total untuk 1 vendor."""
+    return get_category_price(vendor_type) + get_deposit(vendor_type) + get_addon_price(addon_str)
 
 
 # ============================================================
@@ -713,10 +717,10 @@ if show_section("3️⃣ Permohonan Menunggu"):
                         unsafe_allow_html=True,
                     )
 
-                    # Info deposit untuk F&B
-                    dep = get_deposit(v_type)
-                    if dep > 0:
-                        st.caption(f"💰 Deposit: {format_rm(dep)} (refundable)")
+                    # Tunjuk total harga vendor
+                    v_total = get_vendor_total(v_type, row.get(COL_ADDON, ""))
+                    if v_total > 0:
+                        st.caption(f"💰 Total: {format_rm(v_total)}")
 
                     b1, b2, b3, _ = st.columns([1, 1, 1, 3])
 
@@ -736,7 +740,7 @@ if show_section("3️⃣ Permohonan Menunggu"):
 
 
 # ============================================================
-# SECTION 4 — REKOD BAYARAN
+# SECTION 4 — REKOD BAYARAN (PER-VENDOR TOTAL)
 # ============================================================
 if show_section("4️⃣ Rekod Bayaran"):
     st.markdown("## 4️⃣ Rekod Bayaran")
@@ -747,61 +751,16 @@ if show_section("4️⃣ Rekod Bayaran"):
     if approved_df.empty:
         st.info("Belum ada vendor yang diluluskan.")
     else:
-        # === METRIC ===
-        total_approved = len(approved_df)
         total_paid = int(approved_df["Paid"].sum())
-        total_unpaid = total_approved - total_paid
+        total_unpaid = len(approved_df) - total_paid
 
-        # Kira jumlah kewangan
-        paid_df = approved_df[approved_df["Paid"]]
-        unpaid_df = approved_df[~approved_df["Paid"]]
-
-        total_collected_rm = 0.0
-        total_deposit_collected_rm = 0.0
-        for _, r in paid_df.iterrows():
-            v_t = str(r.get(COL_TYPE, "")).strip()
-            total_collected_rm += get_category_price(v_t) + get_addon_price(r.get(COL_ADDON, ""))
-            total_deposit_collected_rm += get_deposit(v_t)
-
-        total_expected_rm = 0.0
-        total_deposit_expected_rm = 0.0
-        for _, r in approved_df.iterrows():
-            v_t = str(r.get(COL_TYPE, "")).strip()
-            total_expected_rm += get_category_price(v_t) + get_addon_price(r.get(COL_ADDON, ""))
-            total_deposit_expected_rm += get_deposit(v_t)
-
-        mc1, mc2, mc3, mc4 = st.columns(4)
-        mc1.metric("Diluluskan", total_approved)
+        mc1, mc2, mc3 = st.columns(3)
+        mc1.metric("Diluluskan", len(approved_df))
         mc2.metric("Sudah Bayar", total_paid)
         mc3.metric("Belum Bayar", total_unpaid)
-        mc4.metric("Bukti Dihantar", sum(1 for p in approved_df[COL_PLATE] if get_vendor_proof(p)[0]))
-
-        # === RINGKASAN KEWANGAN ===
-        st.markdown("---")
-        st.markdown("### 💰 Ringkasan Kewangan")
-
-        wc1, wc2, wc3 = st.columns(3)
-        wc1.metric("✅ Diterima", format_rm(total_collected_rm))
-        wc2.metric("⏳ Belum Diterima", format_rm(total_expected_rm - total_collected_rm))
-        wc3.metric("💰 Total Expected", format_rm(total_expected_rm))
-
-        # Deposit berasingan
-        if total_deposit_expected_rm > 0:
-            wd1, wd2 = st.columns(2)
-            wd1.metric("🔒 Deposit Terkumpul", format_rm(total_deposit_collected_rm))
-            wd2.metric("🔒 Deposit Dijangka", format_rm(total_deposit_expected_rm))
-
-        # Progress
-        if total_expected_rm > 0:
-            progress_pct = total_collected_rm / total_expected_rm
-            st.progress(
-                min(progress_pct, 1.0),
-                text=f"Kutipan: {progress_pct*100:.1f}% ({format_rm(total_collected_rm)} / {format_rm(total_expected_rm)})"
-            )
 
         st.markdown("---")
 
-        # === FILTER ===
         payment_filter = st.selectbox(
             "Filter",
             options=["Semua", "Belum Bayar", "Sudah Bayar", "Belum Upload Bukti", "Sudah Upload Bukti"],
@@ -831,12 +790,8 @@ if show_section("4️⃣ Rekod Bayaran"):
                     plate = row[COL_PLATE]
                     proof_url, folder_url, _ = get_vendor_proof(plate)
 
-                    # Kira jumlah untuk vendor ini
                     v_t = str(row.get(COL_TYPE, "")).strip()
-                    v_cat_p = get_category_price(v_t)
-                    v_dep = get_deposit(v_t)
-                    v_add = get_addon_price(row.get(COL_ADDON, ""))
-                    v_total = v_cat_p + v_dep + v_add
+                    v_total = get_vendor_total(v_t, row.get(COL_ADDON, ""))
 
                     cols = st.columns([3, 2, 1, 1])
 
@@ -858,8 +813,6 @@ if show_section("4️⃣ Rekod Bayaran"):
 
                     with cols[2]:
                         st.markdown(f"**{format_rm(v_total)}**")
-                        if v_dep > 0:
-                            st.caption(f"🔒 {format_rm(v_dep)}")
 
                     with cols[3]:
                         new_val = st.checkbox(
