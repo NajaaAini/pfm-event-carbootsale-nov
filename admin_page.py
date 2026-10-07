@@ -44,7 +44,6 @@ PROOF_COL = "Upload Bukti Bayaran"
 
 VALID_STATUSES = ["Pending", "Approved", "Rejected", "Cancelled"]
 
-# Kategori rasmi
 CAT_CARBOOT = "Car Boot Sales"
 CAT_FB = "F&B"
 
@@ -65,7 +64,23 @@ def normalize_status(raw):
     return s if s in VALID_STATUSES else "Pending"
 
 
+def clean_phone_raw(raw):
+    """Bersihkan nombor telefon — buang petik, .0, dan pastikan leading zero."""
+    if raw is None or pd.isna(raw):
+        return ""
+    s = str(raw).strip()
+    # Buang petik tunggal depan (dari Google Sheets text format)
+    s = s.lstrip("'")
+    # Buang .0 (dari float)
+    if s.endswith(".0"):
+        s = s[:-2]
+    # Buang space, dash, dan karakter bukan digit
+    s = s.strip()
+    return s
+
+
 def normalize_phone(raw):
+    """Normalize untuk WhatsApp — tambah 60 depan."""
     if raw is None or pd.isna(raw):
         return ""
     digits = "".join(filter(str.isdigit, str(raw)))
@@ -80,17 +95,28 @@ def normalize_phone(raw):
 
 
 def format_phone_display(raw):
-    normalized = normalize_phone(raw)
-    if not normalized:
+    """Format untuk display — 011-2363 6997."""
+    cleaned = clean_phone_raw(raw)
+    if not cleaned:
         return "-"
-    if normalized.startswith("60"):
-        local = "0" + normalized[2:]
-        if len(local) == 11:
-            return f"{local[:3]}-{local[3:7]} {local[7:]}"
-        elif len(local) == 10:
-            return f"{local[:2]}-{local[2:6]} {local[6:]}"
-        return local
-    return normalized
+    
+    # Kalau dah ada 0 depan, terus format
+    if cleaned.startswith("0") and cleaned[1:].isdigit():
+        digits = cleaned
+    else:
+        # Tambah 0 kalau hilang (mula dengan 1)
+        digits = "".join(filter(str.isdigit, cleaned))
+        if digits.startswith("60"):
+            digits = "0" + digits[2:]
+        elif digits.startswith("1"):
+            digits = "0" + digits
+        # else kekal
+    
+    if len(digits) == 11:
+        return f"{digits[:3]}-{digits[3:7]} {digits[7:]}"
+    elif len(digits) == 10:
+        return f"{digits[:2]}-{digits[2:6]} {digits[6:]}"
+    return digits
 
 
 # ============================================================
@@ -105,8 +131,14 @@ if df is None:
 df["Paid"] = df["Paid"].fillna(False).astype(bool)
 df["Status"] = df["Status"].apply(normalize_status)
 
+# === FIX: Paksa column telefon jadi string bersih ===
+if COL_PHONE in df.columns:
+    df[COL_PHONE] = df[COL_PHONE].apply(clean_phone_raw)
+
+# === FIX: Pastikan Notes wujud + dtype string ===
 if "Notes" not in df.columns:
     df["Notes"] = ""
+df["Notes"] = df["Notes"].astype("object").fillna("").astype(str)
 
 # ============================================================
 # LOAD PAYMENTS
@@ -155,10 +187,18 @@ def committed(**filters):
 
 
 def others_committed():
-    """Others = semua yang BUKAN Car Boot Sales & BUKAN F&B."""
     mask = ~df[COL_TYPE].isin([CAT_CARBOOT, CAT_FB])
     mask &= df["Status"].isin(["Approved", "Pending"])
     return df[mask].shape[0]
+
+
+def safe_update(conn, df):
+    """Update Sheet dengan paksa Notes + Phone jadi string."""
+    if "Notes" in df.columns:
+        df["Notes"] = df["Notes"].astype("object").fillna("").astype(str)
+    if COL_PHONE in df.columns:
+        df[COL_PHONE] = df[COL_PHONE].astype("object").fillna("").astype(str)
+    conn.update(data=df)
 
 
 # ============================================================
@@ -185,7 +225,6 @@ show_all = section == "🏠 Semua Section"
 
 
 def show_section(label):
-    """Helper: semak sama ada section patut dipaparkan."""
     return show_all or section == label
 
 
@@ -200,7 +239,8 @@ def confirm_approve_dialog(plate, vendor_name):
     with col1:
         if st.button("Ya, Luluskan", type="primary", use_container_width=True):
             df.loc[df[COL_PLATE] == plate, "Status"] = "Approved"
-            conn.update(data=df)
+            df.loc[df[COL_PLATE] == plate, "Notes"] = ""
+            safe_update(conn, df)
             log_action(conn, ADMIN_NAME, "APPROVE", plate, f"Lulus: {vendor_name}")
             st.toast(f"✅ {plate} telah diluluskan", icon="✅")
             st.rerun()
@@ -213,14 +253,37 @@ def confirm_approve_dialog(plate, vendor_name):
 def confirm_reject_dialog(plate, vendor_name):
     st.write("Anda akan **menolak** permohonan ini:")
     st.markdown(f"**No. Plate:** `{plate}`  \n**Nama:** {vendor_name}")
+
+    existing_row = df[df[COL_PLATE] == plate]
+    existing_reason = ""
+    if not existing_row.empty:
+        existing_val = existing_row.iloc[0].get("Notes", "")
+        if pd.notna(existing_val) and str(existing_val).strip():
+            existing_reason = str(existing_val).strip()
+
+    reject_reason = st.text_area(
+        "Sebab Penolakan (vendor akan nampak)",
+        value=existing_reason,
+        placeholder="Contoh: Slot kategori anda telah penuh.",
+        height=120,
+        key=f"reject_reason_{plate}",
+    )
+
     col1, col2 = st.columns(2)
     with col1:
         if st.button("Ya, Tolak", type="primary", use_container_width=True):
-            df.loc[df[COL_PLATE] == plate, "Status"] = "Rejected"
-            conn.update(data=df)
-            log_action(conn, ADMIN_NAME, "REJECT", plate, f"Tolak: {vendor_name}")
-            st.toast(f"❌ {plate} telah ditolak", icon="❌")
-            st.rerun()
+            if not reject_reason.strip():
+                st.warning("⚠️ Sila masukkan sebab penolakan.")
+            else:
+                df.loc[df[COL_PLATE] == plate, "Status"] = "Rejected"
+                df.loc[df[COL_PLATE] == plate, "Notes"] = reject_reason.strip()
+                safe_update(conn, df)
+                log_action(
+                    conn, ADMIN_NAME, "REJECT", plate,
+                    f"Tolak: {vendor_name} — Sebab: {reject_reason[:100]}"
+                )
+                st.toast(f"❌ {plate} telah ditolak", icon="❌")
+                st.rerun()
     with col2:
         if st.button("Batal", use_container_width=True):
             st.rerun()
@@ -234,7 +297,7 @@ def confirm_cancel_all_dialog(count):
     with col1:
         if st.button("Ya, Batalkan Semua", type="primary", use_container_width=True):
             df.loc[(df["Status"] == "Approved") & (~df["Paid"]), "Status"] = "Cancelled"
-            conn.update(data=df)
+            safe_update(conn, df)
             log_action(conn, ADMIN_NAME, "CANCEL_ALL", "-", f"{count} vendor dibatalkan")
             st.toast(f"✅ {count} vendor telah dibatalkan", icon="✅")
             st.rerun()
@@ -252,10 +315,9 @@ def edit_vendor_dialog(plate):
     new_phone = st.text_input(
         "Telefon",
         value=format_phone_display(vendor.get(COL_PHONE, "")),
-        help="Boleh tulis 0123456789 atau 012-345 6789. Sistem akan normalize.",
+        help="Boleh tulis 0123456789 atau 012-345 6789.",
     )
 
-    # Tambah pilihan Arts & Crafts / Toys
     type_options = ["Car Boot Sales", "F&B", "Arts & Crafts / Toys"]
     current_type = str(vendor.get(COL_TYPE, "Car Boot Sales"))
     type_index = type_options.index(current_type) if current_type in type_options else 0
@@ -275,13 +337,12 @@ def edit_vendor_dialog(plate):
         if st.button("Simpan", type="primary", use_container_width=True):
             idx = df[df[COL_PLATE] == plate].index[0]
             df.at[idx, COL_NAME] = new_name
-            normalized_phone = normalize_phone(new_phone)
-            df.at[idx, COL_PHONE] = normalized_phone if normalized_phone else new_phone
+            df.at[idx, COL_PHONE] = clean_phone_raw(new_phone)
             df.at[idx, COL_TYPE] = new_type
             df.at[idx, COL_CAT] = new_cat
             df.at[idx, COL_PLATE] = new_plate
 
-            conn.update(data=df)
+            safe_update(conn, df)
             log_action(conn, ADMIN_NAME, "EDIT", plate, f"Nama: {new_name}, Plate: {new_plate}")
             st.toast(f"✅ {plate} telah dikemaskini", icon="✅")
             st.rerun()
@@ -302,7 +363,7 @@ def confirm_delete_dialog(plate, vendor_name):
         if st.button("Ya, Padam", type="primary", use_container_width=True):
             global df
             df = df[df[COL_PLATE] != plate].reset_index(drop=True)
-            conn.update(data=df)
+            safe_update(conn, df)
             log_action(conn, ADMIN_NAME, "DELETE", plate, f"Padam: {vendor_name}")
             st.toast(f"🗑️ {plate} telah dipadam", icon="🗑️")
             st.rerun()
@@ -324,14 +385,12 @@ if show_section("1️⃣ Papan Pemantauan Kuota"):
     total_committed = cb_committed + fb_committed + ot_committed
     total_limit = CAR_BOOT_LIMIT + FB_OVERALL_LIMIT + OTHERS_LIMIT
 
-    # Row 1: 4 metrics
     c1, c2, c3, c4 = st.columns(4)
     c1.metric("Car Boot", f"{cb_committed} / {CAR_BOOT_LIMIT}")
     c2.metric("F&B", f"{fb_committed} / {FB_OVERALL_LIMIT}")
     c3.metric("Others", f"{ot_committed} / {OTHERS_LIMIT}")
     c4.metric("TOTAL", f"{total_committed} / {total_limit}")
 
-    # Row 2: Progress bars
     pc1, pc2, pc3, pc4 = st.columns(4)
     with pc1:
         st.markdown("**Car Boot**")
@@ -472,7 +531,7 @@ if show_section("3️⃣ Permohonan Menunggu"):
         with f_col1:
             search_query = st.text_input(
                 "Cari (No. Plate / Nama / Telefon)",
-                placeholder="Contoh: PSC5435 atau Ali",
+                placeholder="Contoh: NNA1806 atau Ali",
                 key="pending_search"
             ).strip()
 
@@ -539,16 +598,16 @@ if show_section("3️⃣ Permohonan Menunggu"):
                     if st.button(f"✅ Luluskan {len(bulk_selected)} Vendor", type="primary", use_container_width=True):
                         for plate in bulk_selected:
                             df.loc[df[COL_PLATE] == plate, "Status"] = "Approved"
-                            log_action(conn, ADMIN_NAME, "BULK_APPROVE", plate, "Pukal")
-                        conn.update(data=df)
+                        safe_update(conn, df)
+                        log_action(conn, ADMIN_NAME, "BULK_APPROVE", f"{len(bulk_selected)} vendors", "Pukal")
                         st.toast(f"✅ {len(bulk_selected)} vendor diluluskan", icon="✅")
                         st.rerun()
                 with bc2:
                     if st.button(f"❌ Tolak {len(bulk_selected)} Vendor", use_container_width=True):
                         for plate in bulk_selected:
                             df.loc[df[COL_PLATE] == plate, "Status"] = "Rejected"
-                            log_action(conn, ADMIN_NAME, "BULK_REJECT", plate, "Pukal")
-                        conn.update(data=df)
+                        safe_update(conn, df)
+                        log_action(conn, ADMIN_NAME, "BULK_REJECT", f"{len(bulk_selected)} vendors", "Pukal")
                         st.toast(f"❌ {len(bulk_selected)} vendor ditolak", icon="❌")
                         st.rerun()
 
@@ -568,7 +627,6 @@ if show_section("3️⃣ Permohonan Menunggu"):
                 v_type = vendor[COL_TYPE]
                 v_cat = vendor.get(COL_CAT, "")
 
-                # Info kuota ikut kategori
                 if v_type == CAT_FB:
                     a = df[(df[COL_TYPE] == CAT_FB) & (df[COL_CAT] == v_cat) & (df["Status"] == "Approved")].shape[0]
                     p = df[(df[COL_TYPE] == CAT_FB) & (df[COL_CAT] == v_cat) & (df["Status"] == "Pending")].shape[0]
@@ -607,7 +665,6 @@ if show_section("3️⃣ Permohonan Menunggu"):
                             if cb_committed >= CAR_BOOT_LIMIT:
                                 st.error("Car Boot telah penuh."); ok = False
                         else:
-                            # Others
                             if others_committed() >= OTHERS_LIMIT:
                                 st.error("Others telah penuh."); ok = False
 
@@ -621,8 +678,8 @@ if show_section("3️⃣ Permohonan Menunggu"):
                         edit_vendor_dialog(selected_plate)
                 with c4:
                     if st.button("Simpan Nota", use_container_width=True, key=f"savenotes_{selected_plate}"):
-                        df.loc[df[COL_PLATE] == selected_plate, "Notes"] = new_notes
-                        conn.update(data=df)
+                        df.loc[df[COL_PLATE] == selected_plate, "Notes"] = str(new_notes)
+                        safe_update(conn, df)
                         st.toast("Nota disimpan", icon="📝")
                         st.rerun()
                 with c5:
@@ -776,7 +833,7 @@ if show_section("4️⃣ Rekod Bayaran"):
                             )
 
                     if changed > 0:
-                        conn.update(data=df)
+                        safe_update(conn, df)
                         st.toast(f"✅ {changed} rekod dikemaskini", icon="💾")
                     else:
                         st.toast("Tiada perubahan", icon="ℹ️")
@@ -786,17 +843,18 @@ if show_section("4️⃣ Rekod Bayaran"):
 
 
 # ============================================================
-# SECTION 5 — HANTAR MESEJ WHATSAPP
+# SECTION 5 — WHATSAPP
 # ============================================================
 if show_section("5️⃣ WhatsApp"):
     st.markdown("## 5️⃣ WhatsApp")
-    st.caption("Guna WhatsApp Group untuk hantar mesej kepada semua vendor.")
+    st.caption("Buka group WhatsApp atau ambil senarai nombor untuk follow-up.")
 
     try:
         wa_group = st.secrets["event"]["whatsapp_group"]
     except Exception:
         wa_group = ""
 
+    # Kad link WhatsApp Group
     if wa_group:
         st.markdown(f"""
         <div style="
@@ -804,7 +862,7 @@ if show_section("5️⃣ WhatsApp"):
             border: 1px solid #e8dcc7;
             border-radius: 12px;
             padding: 1.25rem 1.5rem;
-            margin-bottom: 1rem;
+            margin-bottom: 1.5rem;
             display: flex;
             justify-content: space-between;
             align-items: center;
@@ -812,6 +870,7 @@ if show_section("5️⃣ WhatsApp"):
         ">
             <div>
                 <div style="font-weight: 600; color: #292524; font-size: 1rem;">💬 WhatsApp Group Vendor</div>
+                <div style="color: #78716c; font-size: 0.85rem; margin-top: 0.25rem;">Hantar mesej terus dalam group</div>
             </div>
             <a href="{wa_group}" target="_blank" style="
                 background-color: #78350f;
@@ -822,11 +881,14 @@ if show_section("5️⃣ WhatsApp"):
                 font-weight: 600;
                 font-size: 0.9rem;
                 white-space: nowrap;
-            ">Buka Group</a>
+            ">Buka Group →</a>
         </div>
         """, unsafe_allow_html=True)
 
-    with st.expander("📞 Senarai Nombor: "):
+    # Expander senarai nombor
+    with st.expander("📞 Senarai Nombor untuk Follow-up Manual"):
+        st.caption("Copy senarai ni → paste dalam WhatsApp Broadcast List.")
+
         wa1, wa2 = st.columns(2)
         with wa1:
             blast_group = st.selectbox(
