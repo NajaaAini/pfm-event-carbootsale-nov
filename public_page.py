@@ -282,7 +282,7 @@ if submitted and query:
                     else:
                         st.markdown("Terima kasih! Bukti bayaran anda telah diterima. Admin akan semak dan sahkan slot anda tidak lama lagi.")
 
-                st.info("📌 **Seterusnya:** Sila tunggu pengesahan admin dan jangan lupa untuk join group whatsapp.")
+                st.info("📌 **Seterusnya:** Sila tunggu pengesahan admin.")
 
             # ==========================================
             # CASE 2: Approved + BELUM Paid + BELUM UPLOAD
