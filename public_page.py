@@ -1,6 +1,7 @@
 import streamlit as st
 import pandas as pd
 import re
+from urllib.parse import quote
 from streamlit_gsheets import GSheetsConnection
 from style import apply_style
 from components import page_header, load_sheet_safe
@@ -21,6 +22,31 @@ COL_ADDON = "ADD ON"
 PROOF_COL = "Upload Bukti Bayaran"
 
 VALID_STATUSES = ["Pending", "Approved", "Rejected", "Cancelled"]
+
+# Admin WhatsApp
+ADMIN_WA_NUMBER = "601157727459"
+
+
+# ============================================================
+# HELPER — WhatsApp
+# ============================================================
+def whatsapp_button(label, message):
+    """Render butang WhatsApp dengan mesej pre-filled."""
+    wa_url = f"https://wa.me/{ADMIN_WA_NUMBER}?text={quote(message)}"
+    st.markdown(f"""
+    <a href="{wa_url}" target="_blank" style="
+        display: block;
+        background-color: #25D366;
+        color: #ffffff;
+        text-align: center;
+        padding: 0.85rem 1.5rem;
+        border-radius: 8px;
+        text-decoration: none;
+        font-weight: 600;
+        font-size: 1rem;
+        margin-top: 0.75rem;
+    ">{label}</a>
+    """, unsafe_allow_html=True)
 
 
 # ============================================================
@@ -47,7 +73,6 @@ def normalize_status(raw):
 # HELPER — KIRA HARGA
 # ============================================================
 def get_category_price(vendor_type):
-    """Harga ikut kategori."""
     try:
         if vendor_type == "Car Boot Sales":
             return float(st.secrets["event"]["price_car_boot"])
@@ -60,7 +85,6 @@ def get_category_price(vendor_type):
 
 
 def get_addon_price(addon_str):
-    """Auto-extract semua 'RM XX' dari ADD ON string."""
     if addon_str is None or pd.isna(addon_str):
         return 0.0
     try:
@@ -71,7 +95,6 @@ def get_addon_price(addon_str):
 
 
 def get_addon_items(addon_str):
-    """Extract senarai (nama, harga) dari ADD ON string."""
     if addon_str is None or pd.isna(addon_str):
         return []
     try:
@@ -85,7 +108,6 @@ def get_addon_items(addon_str):
 
 
 def format_rm(amount):
-    """Format RM."""
     try:
         return f"RM {float(amount):,.2f}"
     except (ValueError, TypeError):
@@ -171,7 +193,6 @@ if df is None:
             st.code(err)
     st.stop()
 
-# Normalize status column
 df["Status"] = df["Status"].apply(normalize_status)
 
 # ============================================================
@@ -230,6 +251,12 @@ if submitted and query:
             ">📝 Daftar Sekarang</a>
         </div>
         """, unsafe_allow_html=True)
+
+        # Butang WhatsApp — untuk yang tak jumpa
+        whatsapp_button(
+            "💬 Ada Masalah? Hubungi Admin",
+            f"Hi! PFM Car Boot Sale — Saya tak jumpa No. Plate {query} dalam sistem"
+        )
 
     else:
         row = result.iloc[0]
@@ -330,6 +357,11 @@ if submitted and query:
 
             st.info("📌 **Belum perlu buat bayaran.** Bayaran hanya diperlukan selepas permohonan anda diluluskan.")
 
+            whatsapp_button(
+                "💬 Ada Pertanyaan? Hubungi Admin",
+                f"Hi! PFM Car Boot Sale — Permohonan saya masih pending (Plate: {query})"
+            )
+
         # ---------- REJECTED ----------
         elif status == "Rejected":
             st.markdown("""
@@ -338,6 +370,7 @@ if submitted and query:
                 border: 1px solid #fecaca;
                 border-radius: 12px;
                 padding: 1.5rem 1.75rem;
+                margin-bottom: 1rem;
             ">
                 <div style="display: flex;align-items: center;gap: 0.75rem;margin-bottom: 0.75rem;">
                     <div style="
@@ -356,6 +389,48 @@ if submitted and query:
             </div>
             """, unsafe_allow_html=True)
 
+            # Papar sebab penolakan (kalau ada)
+            reject_reason = ""
+            if pd.notna(row.get("Notes")) and str(row.get("Notes")).strip():
+                reject_reason = str(row.get("Notes")).strip()
+
+            if reject_reason:
+                safe_reason = (
+                    reject_reason
+                    .replace("&", "&amp;")
+                    .replace("<", "&lt;")
+                    .replace(">", "&gt;")
+                )
+                st.markdown(f"""
+                <div style="
+                    background-color: #ffffff;
+                    border: 1px solid #fecaca;
+                    border-left: 4px solid #dc2626;
+                    border-radius: 8px;
+                    padding: 1.1rem 1.35rem;
+                    margin-bottom: 1rem;
+                ">
+                    <div style="
+                        font-size: 0.78rem;
+                        color: #78716c;
+                        text-transform: uppercase;
+                        letter-spacing: 0.5px;
+                        font-weight: 600;
+                        margin-bottom: 0.5rem;
+                    ">📋 Sebab Penolakan</div>
+                    <div style="
+                        color: #292524;
+                        font-size: 0.95rem;
+                        line-height: 1.6;
+                    ">{safe_reason}</div>
+                </div>
+                """, unsafe_allow_html=True)
+
+            whatsapp_button(
+                "💬 Tanya Admin via WhatsApp",
+                f"Hi! PFM Car Boot Sale — Nak tanya pasal permohonan yang ditolak (Plate: {query})"
+            )
+
         # ---------- CANCELLED ----------
         elif status == "Cancelled":
             st.markdown("""
@@ -364,6 +439,7 @@ if submitted and query:
                 border: 1px solid #fecaca;
                 border-radius: 12px;
                 padding: 1.5rem 1.75rem;
+                margin-bottom: 1rem;
             ">
                 <div style="display: flex;align-items: center;gap: 0.75rem;margin-bottom: 0.75rem;">
                     <div style="
@@ -382,12 +458,15 @@ if submitted and query:
             </div>
             """, unsafe_allow_html=True)
 
+            whatsapp_button(
+                "💬 Tanya Admin via WhatsApp",
+                f"Hi! PFM Car Boot Sale — Slot saya telah dibatalkan (Plate: {query})"
+            )
+
         # ---------- APPROVED ----------
         elif status == "Approved":
 
-            # ==========================================
             # CASE 1: Approved + BELUM Paid + DAH UPLOAD BUKTI
-            # ==========================================
             if not paid and has_uploaded_proof:
                 st.markdown(f"""
                 <div style="
@@ -424,16 +503,23 @@ if submitted and query:
                     with st.expander("📎 Lihat bukti yang dihantar"):
                         if proof_url:
                             st.markdown(f"[📄 Fail Bukti Bayaran]({proof_url})")
-                            try:
-                                st.image(proof_url, use_container_width=True)
-                            except Exception:
-                                st.caption("Klik link untuk buka fail")
+                            # Preview hanya untuk imej, bukan PDF
+                            if proof_url.lower().endswith(".pdf"):
+                                st.caption("📄 Fail PDF — klik link untuk buka")
+                            else:
+                                try:
+                                    st.image(proof_url, use_container_width=True)
+                                except Exception:
+                                    st.caption("Klik link untuk buka fail")
                         if folder_url:
                             st.markdown(f"[📁 Folder Bukti]({folder_url})")
 
-            # ==========================================
+                whatsapp_button(
+                    "💬 Ada Pertanyaan? Hubungi Admin",
+                    f"Hi! PFM Car Boot Sale — Bukti bayaran saya telah dihantar (Plate: {query})"
+                )
+
             # CASE 2: Approved + BELUM Paid + BELUM UPLOAD
-            # ==========================================
             elif not paid and not has_uploaded_proof:
                 st.markdown("""
                 <div style="
@@ -460,9 +546,7 @@ if submitted and query:
                 </div>
                 """, unsafe_allow_html=True)
 
-                # ==========================================
-                # KAD HARGA — JUMLAH PERLU DIBAYAR
-                # ==========================================
+                # KAD HARGA
                 vendor_type = str(row.get(COL_TYPE, "")).strip()
                 cat_price = get_category_price(vendor_type)
                 addon_str_raw = str(row.get(COL_ADDON, "") or "")
@@ -504,7 +588,6 @@ if submitted and query:
                     </div>
                     """, unsafe_allow_html=True)
 
-                    # Detail ADD ON (kalau ada)
                     if addon_items:
                         with st.expander("📋 Detail Add On"):
                             for name, price in addon_items:
@@ -563,9 +646,13 @@ if submitted and query:
                             unsafe_allow_html=True,
                         )
 
-            # ==========================================
+                # Butang WhatsApp
+                whatsapp_button(
+                    "💬 Ada Pertanyaan? Hubungi Admin",
+                    f"Hi! PFM Car Boot Sale — Nak tanya pasal bayaran (Plate: {query})"
+                )
+
             # CASE 3: Approved + DAH Paid
-            # ==========================================
             else:
                 st.markdown("""
                 <div style="
@@ -641,21 +728,7 @@ if submitted and query:
                 "Sila hubungi admin untuk maklumat lanjut."
             )
 
-            wa_number = "601157727459"
-            wa_message = "Hi! PFM Car Boot Sale November"
-            wa_url = f"https://wa.me/{wa_number}?text={wa_message.replace(' ', '%20').replace('!', '%21')}"
-
-            st.markdown(f"""
-            <a href="{wa_url}" target="_blank" style="
-                display: block;
-                background-color: #25D366;
-                color: #ffffff;
-                text-align: center;
-                padding: 0.85rem 1.5rem;
-                border-radius: 8px;
-                text-decoration: none;
-                font-weight: 600;
-                font-size: 1rem;
-                margin-top: 0.75rem;
-            ">💬 Hubungi Admin via WhatsApp</a>
-            """, unsafe_allow_html=True)
+            whatsapp_button(
+                "💬 Hubungi Admin via WhatsApp",
+                f"Hi! PFM Car Boot Sale — Status tidak dikenali (Plate: {query})"
+            )
