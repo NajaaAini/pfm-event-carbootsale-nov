@@ -40,7 +40,6 @@ FB_CATEGORIES = [
 # HELPER — WHATSAPP
 # ============================================================
 def whatsapp_button(label, message):
-    """Render butang WhatsApp dengan mesej pre-filled."""
     wa_url = f"https://wa.me/{ADMIN_WA_NUMBER}?text={quote(message)}"
     st.markdown(f"""
     <a href="{wa_url}" target="_blank" style="
@@ -62,7 +61,6 @@ def whatsapp_button(label, message):
 # HELPER — KIRA HARGA
 # ============================================================
 def get_category_price(vendor_type):
-    """Harga ikut kategori."""
     try:
         if vendor_type == "Car Boot Sales":
             return float(st.secrets["event"]["price_car_boot"])
@@ -74,8 +72,19 @@ def get_category_price(vendor_type):
         return 0.0
 
 
+def get_deposit(vendor_type):
+    """Deposit refundable — F&B + Arts & Crafts / Toys."""
+    try:
+        if vendor_type == "F&B":
+            return float(st.secrets["event"]["deposit_fb"])
+        elif vendor_type == "Arts & Crafts / Toys":
+            return float(st.secrets["event"].get("deposit_others", 100))
+        return 0.0
+    except Exception:
+        return 0.0
+
+
 def get_addon_price(addon_str):
-    """Auto-extract semua 'RM XX' dari ADD ON string."""
     if addon_str is None or pd.isna(addon_str):
         return 0.0
     try:
@@ -86,7 +95,6 @@ def get_addon_price(addon_str):
 
 
 def get_addon_items(addon_str):
-    """Extract senarai (nama, harga) dari ADD ON string."""
     if addon_str is None or pd.isna(addon_str):
         return []
     try:
@@ -100,7 +108,6 @@ def get_addon_items(addon_str):
 
 
 def format_rm(amount):
-    """Format RM."""
     try:
         return f"RM {float(amount):,.2f}"
     except (ValueError, TypeError):
@@ -232,14 +239,17 @@ if submitted:
     # KIRA TOTAL HARGA
     # ============================================================
     cat_price = get_category_price(vendor_type)
+    deposit_amount = get_deposit(vendor_type)
     addon_str_raw = str(vendor.get(COL_ADDON, "") or "")
     addon_price = get_addon_price(addon_str_raw)
     addon_items = get_addon_items(addon_str_raw)
-    total_price = cat_price + addon_price
+    total_price = cat_price + deposit_amount + addon_price
 
     # === Kad harga ===
     if total_price > 0:
         breakdown_html = f'<div>📦 {vendor_type}: <b>{format_rm(cat_price)}</b></div>'
+        if deposit_amount > 0:
+            breakdown_html += f'<div>🔒 Deposit (Refundable): <b>{format_rm(deposit_amount)}</b></div>'
         if addon_price > 0:
             breakdown_html += f'<div>➕ Add On: <b>{format_rm(addon_price)}</b></div>'
 
@@ -278,10 +288,19 @@ if submitted:
                 for name, price in addon_items:
                     st.markdown(f"- {name}: **{format_rm(price)}**")
 
-        st.info(
-            f"💡 **Sila buat bayaran sebanyak {format_rm(total_price)}** "
-            "sebelum upload bukti bayaran di bawah."
-        )
+        # Info bayaran
+        if deposit_amount > 0:
+            st.info(
+                f"💡 **Sila buat bayaran sebanyak {format_rm(total_price)}** "
+                f"({format_rm(cat_price + addon_price)} bayaran + "
+                f"{format_rm(deposit_amount)} deposit). "
+                f"**Deposit {format_rm(deposit_amount)} akan dipulangkan selepas event.**"
+            )
+        else:
+            st.info(
+                f"💡 **Sila buat bayaran sebanyak {format_rm(total_price)}** "
+                "sebelum upload bukti bayaran di bawah."
+            )
 
         # === BUTANG WHATSAPP ===
         whatsapp_button(
@@ -389,3 +408,4 @@ if submitted:
             st.image(uploaded, use_container_width=True)
 
     st.balloons()
+    
