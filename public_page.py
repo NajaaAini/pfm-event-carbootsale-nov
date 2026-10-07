@@ -371,20 +371,8 @@ if submitted and query:
                 """, unsafe_allow_html=True)
 
                 st.info(
-                    "📌 **Seterusnya:** Sila tunggu pengesahan admin dan jangan lupa untuk join group whatsapp."
-                )
-
-                # Link ke fail & folder (optional)
-                if proof_url or folder_url:
-                    with st.expander("📎 Lihat bukti yang dihantar"):
-                        if proof_url:
-                            st.markdown(f"[📄 Fail Bukti Bayaran]({proof_url})")
-                            try:
-                                st.image(proof_url, use_container_width=True)
-                            except Exception:
-                                st.caption("Klik link untuk buka fail")
-                        if folder_url:
-                            st.markdown(f"[📁 Folder Bukti]({folder_url})")
+                    "📌 **Seterusnya:** Sila tunggu pengesahan admin dan jangan lupa untuk join group whatsapp nanti bila dah approve."
+                )                    
 
             # ==========================================
             # CASE 2: Approved + BELUM Paid + BELUM UPLOAD
