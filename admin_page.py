@@ -183,10 +183,12 @@ df["Notes"] = df["Notes"].astype("object").fillna("").astype(str)
 payments_df = load_sheet_safe(conn, "Payments", ttl=60)
 if payments_df is None or payments_df.empty:
     payments_df = pd.DataFrame(
-        columns=["Timestamp", "Plate Number", PROOF_COL, "FolderUrl"]
+        columns=["Timestamp", "Plate Number", PROOF_COL, "FolderUrl",
+                 "Pilih parking lot", "Pilih F&B Lot"]
     )
 
-for col in ["Timestamp", "Plate Number", PROOF_COL, "FolderUrl"]:
+for col in ["Timestamp", "Plate Number", PROOF_COL, "FolderUrl",
+            "Pilih parking lot", "Pilih F&B Lot"]:
     if col not in payments_df.columns:
         payments_df[col] = ""
 
@@ -195,21 +197,50 @@ payments_df["_plate_norm"] = (
 )
 
 
-def get_vendor_proof(plate):
+def _clean_payment_val(v):
+    """Bersihkan value dari Sheet Payments — buang nan/none."""
+    if v is None or pd.isna(v):
+        return ""
+    s = str(v).strip()
+    if s.lower() in ("nan", "none", "nat", "null"):
+        return ""
+    return s
+
+
+def get_vendor_payment_info(plate):
+    """Return dict info payment terkini untuk plate."""
     normalized = str(plate).upper().replace(" ", "")
     matched = payments_df[payments_df["_plate_norm"] == normalized]
+
     if matched.empty:
-        return "", "", ""
+        return {
+            "proof_url": "",
+            "folder_url": "",
+            "timestamp": "",
+            "parking_lot": "",
+            "fnb_lot": "",
+        }
+
     try:
         matched = matched.sort_values("Timestamp", ascending=False)
     except Exception:
         pass
+
     latest = matched.iloc[0]
-    return (
-        str(latest.get(PROOF_COL, "") or ""),
-        str(latest.get("FolderUrl", "") or ""),
-        str(latest.get("Timestamp", "") or ""),
-    )
+
+    return {
+        "proof_url": _clean_payment_val(latest.get(PROOF_COL, "")),
+        "folder_url": _clean_payment_val(latest.get("FolderUrl", "")),
+        "timestamp": _clean_payment_val(latest.get("Timestamp", "")),
+        "parking_lot": _clean_payment_val(latest.get("Pilih parking lot", "")),
+        "fnb_lot": _clean_payment_val(latest.get("Pilih F&B Lot", "")),
+    }
+
+
+# Backward-compat — kalau ada kod lama panggil get_vendor_proof
+def get_vendor_proof(plate):
+    info = get_vendor_payment_info(plate)
+    return info["proof_url"], info["folder_url"], info["timestamp"]
 
 
 # ============================================================
@@ -717,7 +748,6 @@ if show_section("3️⃣ Permohonan Menunggu"):
                         unsafe_allow_html=True,
                     )
 
-                    # Tunjuk total harga vendor
                     v_total = get_vendor_total(v_type, row.get(COL_ADDON, ""))
                     if v_total > 0:
                         st.caption(f"💰 Total: {format_rm(v_total)}")
@@ -740,7 +770,7 @@ if show_section("3️⃣ Permohonan Menunggu"):
 
 
 # ============================================================
-# SECTION 4 — REKOD BAYARAN (PER-VENDOR TOTAL)
+# SECTION 4 — REKOD BAYARAN
 # ============================================================
 if show_section("4️⃣ Rekod Bayaran"):
     st.markdown("## 4️⃣ Rekod Bayaran")
@@ -772,9 +802,13 @@ if show_section("4️⃣ Rekod Bayaran"):
         elif payment_filter == "Sudah Bayar":
             view_df = approved_df[approved_df["Paid"]]
         elif payment_filter == "Belum Upload Bukti":
-            view_df = approved_df[~approved_df[COL_PLATE].apply(lambda p: bool(get_vendor_proof(p)[0]))]
+            view_df = approved_df[
+                ~approved_df[COL_PLATE].apply(lambda p: bool(get_vendor_payment_info(p)["proof_url"]))
+            ]
         elif payment_filter == "Sudah Upload Bukti":
-            view_df = approved_df[approved_df[COL_PLATE].apply(lambda p: bool(get_vendor_proof(p)[0]))]
+            view_df = approved_df[
+                approved_df[COL_PLATE].apply(lambda p: bool(get_vendor_payment_info(p)["proof_url"]))
+            ]
         else:
             view_df = approved_df
 
@@ -788,7 +822,12 @@ if show_section("4️⃣ Rekod Bayaran"):
 
                 for _, row in view_df.iterrows():
                     plate = row[COL_PLATE]
-                    proof_url, folder_url, _ = get_vendor_proof(plate)
+                    info = get_vendor_payment_info(plate)
+
+                    proof_url = info["proof_url"]
+                    folder_url = info["folder_url"]
+                    parking_lot = info["parking_lot"]
+                    fnb_lot = info["fnb_lot"]
 
                     v_t = str(row.get(COL_TYPE, "")).strip()
                     v_total = get_vendor_total(v_t, row.get(COL_ADDON, ""))
@@ -821,6 +860,16 @@ if show_section("4️⃣ Rekod Bayaran"):
                             key=f"paid_{plate}",
                         )
                         new_paid_status[plate] = new_val
+
+                    # === INFO SLOT (Parking Lot + F&B Lot) ===
+                    slot_parts = []
+                    if parking_lot:
+                        slot_parts.append(f"**Parking Lot:** {parking_lot}")
+                    if fnb_lot:
+                        slot_parts.append(f"**F&B Lot:** {fnb_lot}")
+
+                    if slot_parts:
+                        st.caption("📍 " + " &nbsp;|&nbsp; ".join(slot_parts))
 
                     st.markdown(
                         "<hr style='margin:0.75rem 0;border:none;border-top:1px solid #f0e6d6;'>",
