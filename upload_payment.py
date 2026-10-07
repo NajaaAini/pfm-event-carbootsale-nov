@@ -1,5 +1,6 @@
 import streamlit as st
 import pandas as pd
+import re
 from datetime import datetime
 from streamlit_gsheets import GSheetsConnection
 from style import apply_style
@@ -20,14 +21,64 @@ COL_PHONE = "Nombor Telefon/Phone Number"
 COL_TYPE = "Kategori Produk/Product Category"
 COL_CAT = "F&B CATEGORY"
 COL_PLATE = "Plate Number"
+COL_ADDON = "ADD ON"
 
-# Nama column bukti bayaran dalam Sheet
 PROOF_COL = "Upload Bukti Bayaran"
 
 FB_CATEGORIES = [
     "Local Food", "Dessert", "Coffee/Air", "Grill and BBQ",
     "Deep-Fry", "Italian/Western Food", "Japanese Food", "Chinese Food",
 ]
+
+
+# ============================================================
+# HELPER — KIRA HARGA
+# ============================================================
+def get_category_price(vendor_type):
+    """Harga ikut kategori."""
+    try:
+        if vendor_type == "Car Boot Sales":
+            return float(st.secrets["event"]["price_car_boot"])
+        elif vendor_type == "F&B":
+            return float(st.secrets["event"]["price_fb"])
+        else:
+            return float(st.secrets["event"]["price_others"])
+    except Exception:
+        return 0.0
+
+
+def get_addon_price(addon_str):
+    """Auto-extract semua 'RM XX' dari ADD ON string."""
+    if addon_str is None or pd.isna(addon_str):
+        return 0.0
+    try:
+        matches = re.findall(r"RM\s*([0-9]+(?:\.[0-9]+)?)", str(addon_str))
+        return sum(float(m) for m in matches)
+    except Exception:
+        return 0.0
+
+
+def get_addon_items(addon_str):
+    """Extract senarai (nama, harga) dari ADD ON string."""
+    if addon_str is None or pd.isna(addon_str):
+        return []
+    try:
+        items = re.findall(
+            r"([^,()]+?)\s*\(Fee:\s*RM\s*([0-9.]+)\)",
+            str(addon_str)
+        )
+        return [(name.strip(), float(price)) for name, price in items]
+    except Exception:
+        return []
+
+
+def format_rm(amount):
+    """Format RM."""
+    try:
+        return f"RM {float(amount):,.2f}"
+    except (ValueError, TypeError):
+        return "RM 0.00"
+
 
 # ============================================================
 # LOAD VENDORS
@@ -130,6 +181,67 @@ if submitted:
 
     st.success(f"✅ Vendor dijumpai: **{vendor_name}** ({vendor_type})")
 
+    # ============================================================
+    # KIRA TOTAL HARGA
+    # ============================================================
+    cat_price = get_category_price(vendor_type)
+    addon_str_raw = str(vendor.get(COL_ADDON, "") or "")
+    addon_price = get_addon_price(addon_str_raw)
+    addon_items = get_addon_items(addon_str_raw)
+    total_price = cat_price + addon_price
+
+    # === Kad harga ===
+    if total_price > 0:
+        # Breakdown HTML
+        breakdown_html = f'<div>📦 {vendor_type}: <b>{format_rm(cat_price)}</b></div>'
+        if addon_price > 0:
+            breakdown_html += f'<div>➕ Add On: <b>{format_rm(addon_price)}</b></div>'
+
+        st.markdown(f"""
+        <div style="
+            background-color: #fef9ec;
+            border: 2px solid #f0e6d6;
+            border-radius: 12px;
+            padding: 1.5rem 1.75rem;
+            margin: 1rem 0 1.5rem 0;
+        ">
+            <div style="
+                font-size: 0.8rem; color: #78716c;
+                text-transform: uppercase; letter-spacing: 0.5px;
+                margin-bottom: 0.5rem;
+            ">💰 Jumlah Perlu Dibayar</div>
+            <div style="
+                font-size: 2.25rem; font-weight: 700;
+                color: #78350f; margin-bottom: 0.75rem;
+                line-height: 1;
+            ">{format_rm(total_price)}</div>
+            <div style="
+                font-size: 0.85rem; color: #57534e;
+                border-top: 1px dashed #e8dcc7;
+                padding-top: 0.75rem;
+                display: grid; gap: 0.35rem;
+            ">
+                {breakdown_html}
+            </div>
+        </div>
+        """, unsafe_allow_html=True)
+
+        # Detail ADD ON
+        if addon_items:
+            with st.expander("📋 Detail Add On"):
+                for name, price in addon_items:
+                    st.markdown(f"- {name}: **{format_rm(price)}**")
+
+        st.info(
+            f"💡 **Sila buat bayaran sebanyak {format_rm(total_price)}** "
+            "sebelum upload bukti bayaran di bawah."
+        )
+    else:
+        st.warning(
+            "⚠️ Total harga tidak dapat dikira secara automatik. "
+            "Sila hubungi admin untuk jumlah bayaran."
+        )
+
     # ---- Semak jika sudah upload sebelum ini ----
     existing_payments = load_sheet_safe(conn, "Payments", ttl=0)
     if existing_payments is None or existing_payments.empty:
@@ -179,7 +291,7 @@ if submitted:
     new_row = pd.DataFrame([{
         "Timestamp": datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
         "Plate Number": plate_input,
-        PROOF_COL: view_url,          # ← guna nama column Sheet
+        PROOF_COL: view_url,
         "FolderUrl": folder_url,
     }])
     updated_payments = pd.concat([existing_payments, new_row], ignore_index=True)
@@ -197,6 +309,8 @@ if submitted:
     st.markdown("---")
     st.markdown("### ✅ Bukti Bayaran Berjaya Dihantar")
     st.markdown(f"**Vendor:** {vendor_name}  \n**No. Plate:** `{plate_input}`")
+    if total_price > 0:
+        st.markdown(f"**Jumlah:** {format_rm(total_price)}")
     st.markdown(f"**Fail:** [Lihat Bukti]({view_url})")
     if folder_url:
         st.markdown(f"**Folder vendor:** [Buka Folder]({folder_url})")
