@@ -124,11 +124,9 @@ if df is None:
 df["Paid"] = df["Paid"].fillna(False).astype(bool)
 df["Status"] = df["Status"].apply(normalize_status)
 
-# FIX: Paksa column telefon jadi string bersih
 if COL_PHONE in df.columns:
     df[COL_PHONE] = df[COL_PHONE].apply(clean_phone_raw)
 
-# FIX: Pastikan Notes wujud + dtype string
 if "Notes" not in df.columns:
     df["Notes"] = ""
 df["Notes"] = df["Notes"].astype("object").fillna("").astype(str)
@@ -169,9 +167,28 @@ def get_vendor_proof(plate):
 
 
 # ============================================================
-# FUNGSI BANTUAN
+# FUNGSI BANTUAN — kiraan kuota
 # ============================================================
+def count_approved(**filters):
+    """Kira status Approved sahaja."""
+    mask = pd.Series(True, index=df.index)
+    for col, val in filters.items():
+        mask &= (df[col] == val)
+    mask &= (df["Status"] == "Approved")
+    return df[mask].shape[0]
+
+
+def count_pending(**filters):
+    """Kira status Pending sahaja."""
+    mask = pd.Series(True, index=df.index)
+    for col, val in filters.items():
+        mask &= (df[col] == val)
+    mask &= (df["Status"] == "Pending")
+    return df[mask].shape[0]
+
+
 def committed(**filters):
+    """Kira Approved + Pending (untuk kelulusan limit)."""
     mask = pd.Series(True, index=df.index)
     for col, val in filters.items():
         mask &= (df[col] == val)
@@ -182,6 +199,18 @@ def committed(**filters):
 def others_committed():
     mask = ~df[COL_TYPE].isin([CAT_CARBOOT, CAT_FB])
     mask &= df["Status"].isin(["Approved", "Pending"])
+    return df[mask].shape[0]
+
+
+def others_approved():
+    mask = ~df[COL_TYPE].isin([CAT_CARBOOT, CAT_FB])
+    mask &= (df["Status"] == "Approved")
+    return df[mask].shape[0]
+
+
+def others_pending():
+    mask = ~df[COL_TYPE].isin([CAT_CARBOOT, CAT_FB])
+    mask &= (df["Status"] == "Pending")
     return df[mask].shape[0]
 
 
@@ -365,7 +394,7 @@ def confirm_delete_dialog(plate, vendor_name):
 
 
 # ============================================================
-# 📞 WHATSAPP GROUP — ATAS PAGE (sentiasa nampak)
+# 📞 WHATSAPP GROUP — ATAS PAGE
 # ============================================================
 try:
     wa_group = st.secrets["event"]["whatsapp_group"]
@@ -404,23 +433,57 @@ if wa_group:
 
 
 # ============================================================
-# SECTION 1 — PAPAN PEMANTAUAN KUOTA
+# SECTION 1 — PAPAN PEMANTAUAN KUOTA (APPROVED + PENDING DELTA)
 # ============================================================
 if show_section("1️⃣ Papan Pemantauan Kuota"):
     st.markdown("## 1️⃣ Papan Pemantauan Kuota")
 
-    cb_committed = committed(**{COL_TYPE: CAT_CARBOOT})
-    fb_committed = committed(**{COL_TYPE: CAT_FB})
-    ot_committed = others_committed()
+    # Approved
+    cb_approved = count_approved(**{COL_TYPE: CAT_CARBOOT})
+    fb_approved = count_approved(**{COL_TYPE: CAT_FB})
+    ot_approved = others_approved()
 
-    total_committed = cb_committed + fb_committed + ot_committed
+    # Pending
+    cb_pending = count_pending(**{COL_TYPE: CAT_CARBOOT})
+    fb_pending = count_pending(**{COL_TYPE: CAT_FB})
+    ot_pending = others_pending()
+
+    total_approved = cb_approved + fb_approved + ot_approved
+    total_pending = cb_pending + fb_pending + ot_pending
     total_limit = CAR_BOOT_LIMIT + FB_OVERALL_LIMIT + OTHERS_LIMIT
 
+    # METRIC — Approved sebagai value, Pending sebagai delta
     c1, c2, c3, c4 = st.columns(4)
-    c1.metric("Car Boot", f"{cb_committed} / {CAR_BOOT_LIMIT}")
-    c2.metric("F&B", f"{fb_committed} / {FB_OVERALL_LIMIT}")
-    c3.metric("Others", f"{ot_committed} / {OTHERS_LIMIT}")
-    c4.metric("TOTAL", f"{total_committed} / {total_limit}")
+    c1.metric(
+        "Car Boot",
+        f"{cb_approved} / {CAR_BOOT_LIMIT}",
+        f"⏳ {cb_pending} pending" if cb_pending > 0 else None,
+        delta_color="off",
+    )
+    c2.metric(
+        "F&B",
+        f"{fb_approved} / {FB_OVERALL_LIMIT}",
+        f"⏳ {fb_pending} pending" if fb_pending > 0 else None,
+        delta_color="off",
+    )
+    c3.metric(
+        "Others",
+        f"{ot_approved} / {OTHERS_LIMIT}",
+        f"⏳ {ot_pending} pending" if ot_pending > 0 else None,
+        delta_color="off",
+    )
+    c4.metric(
+        "TOTAL",
+        f"{total_approved} / {total_limit}",
+        f"⏳ {total_pending} pending" if total_pending > 0 else None,
+        delta_color="off",
+    )
+
+    # Progress bar (guna committed = approved + pending untuk kuota sebenar)
+    cb_committed = cb_approved + cb_pending
+    fb_committed = fb_approved + fb_pending
+    ot_committed = ot_approved + ot_pending
+    total_committed = total_approved + total_pending
 
     pc1, pc2, pc3, pc4 = st.columns(4)
     with pc1:
@@ -436,7 +499,10 @@ if show_section("1️⃣ Papan Pemantauan Kuota"):
         st.markdown("**TOTAL**")
         st.progress(min(total_committed / total_limit, 1.0), text=f"{total_committed}/{total_limit}")
 
-    st.caption(f"📅 Tarikh Event: **{EVENT_DATE.strftime('%d %b %Y')}**")
+    st.caption(
+        f"📅 Tarikh Event: **{EVENT_DATE.strftime('%d %b %Y')}** &nbsp;|&nbsp; "
+        f"✅ = Approved &nbsp; ⏳ = Pending"
+    )
 
     st.markdown(f"**Pecahan Kategori F&B (had: {FB_CATEGORY_LIMIT} setiap satu)**")
 
@@ -455,7 +521,7 @@ if show_section("1️⃣ Papan Pemantauan Kuota"):
             status_text = "🟢 Tersedia"
 
         rows.append({
-            "Status": status_text, "Kategori": cat, "Diluluskan": a, "Menunggu": p,
+            "Status": status_text, "Kategori": cat, "Approved": a, "Pending": p,
             "Total": committed_n, "Limit": FB_CATEGORY_LIMIT, "Slot Baki": left,
         })
 
@@ -466,7 +532,7 @@ if show_section("1️⃣ Papan Pemantauan Kuota"):
         import plotly.express as px
         approved_fb = df[(df[COL_TYPE] == CAT_FB) & (df["Status"] == "Approved")]
         if not approved_fb.empty:
-            st.markdown("**Kategori F&B (Diluluskan)**")
+            st.markdown("**Kategori F&B (Approved)**")
             fig = px.pie(approved_fb, names=COL_CAT, hole=0.4,
                          color_discrete_sequence=px.colors.sequential.Oranges_r)
             fig.update_layout(margin=dict(t=20, b=20, l=20, r=20), height=300)
@@ -557,7 +623,6 @@ if show_section("3️⃣ Permohonan Menunggu"):
     if pending_df.empty:
         st.info("Tiada permohonan yang menunggu.")
     else:
-        # === DROPDOWN FILTER KATEGORI ===
         f_col1, f_col2, f_col3 = st.columns([2, 2, 1])
 
         with f_col1:
@@ -579,7 +644,6 @@ if show_section("3️⃣ Permohonan Menunggu"):
             sort_options = ["Terbaru", "Terlama", "Nama A-Z"]
             sort_by = st.selectbox("Susun", options=sort_options, key="pending_sort")
 
-        # Apply filter
         filtered = pending_df.copy()
 
         if type_filter != "Semua":
@@ -607,7 +671,6 @@ if show_section("3️⃣ Permohonan Menunggu"):
             f"(Filter: **{type_filter}**)"
         )
 
-        # Download CSV
         csv_data = convert_df_to_csv(filtered)
         st.download_button(
             "📥 Muat Turun CSV (Senarai Menunggu)",
@@ -619,14 +682,11 @@ if show_section("3️⃣ Permohonan Menunggu"):
         if filtered.empty:
             st.warning("Tiada permohonan sepadan dengan tapisan anda.")
         else:
-            # === TABLE ===
             display_filtered = filtered[[COL_PLATE, COL_NAME, COL_PHONE, COL_TYPE, COL_CAT]].copy()
             display_filtered[COL_PHONE] = display_filtered[COL_PHONE].apply(format_phone_display)
             st.dataframe(display_filtered, hide_index=True, use_container_width=True)
 
             st.markdown("---")
-
-            # === URUS SATU-SATU ===
             st.markdown("**Pilih vendor untuk diurus:**")
 
             selected_plate = st.selectbox(
@@ -640,7 +700,6 @@ if show_section("3️⃣ Permohonan Menunggu"):
                 v_type = vendor[COL_TYPE]
                 v_cat = vendor.get(COL_CAT, "")
 
-                # Info kuota ikut kategori
                 if v_type == CAT_FB:
                     a = df[(df[COL_TYPE] == CAT_FB) & (df[COL_CAT] == v_cat) & (df["Status"] == "Approved")].shape[0]
                     p = df[(df[COL_TYPE] == CAT_FB) & (df[COL_CAT] == v_cat) & (df["Status"] == "Pending")].shape[0]
@@ -857,7 +916,7 @@ if show_section("4️⃣ Rekod Bayaran"):
 
 
 # ============================================================
-# SECTION 6 — SEMUA VENDOR (PAPAR TERUS, TAKDE EXPANDER)
+# SECTION 5 — SEMUA VENDOR + LOG (PAPAR TERUS)
 # ============================================================
 if show_all:
     st.markdown("## 5️⃣ Semua Vendor")
@@ -960,9 +1019,6 @@ if show_all:
 
     st.divider()
 
-    # ============================================================
-    # LOG TINDAKAN ADMIN — PAPAR TERUS
-    # ============================================================
     st.markdown("## 6️⃣ Log Tindakan Admin")
 
     logs = load_sheet_safe(conn, "Log", ttl=60)
@@ -990,4 +1046,3 @@ if show_all:
             file_name=f"log_{datetime.now().strftime('%Y%m%d_%H%M')}.csv",
             mime="text/csv",
         )
-        
