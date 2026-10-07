@@ -606,7 +606,7 @@ if show_section("3️⃣ Permohonan Menunggu"):
 
 
 # ============================================================
-# SECTION 3 — PERMOHONAN MENUNGGU (DROPDOWN FILTER)
+# SECTION 3 — PERMOHONAN MENUNGGU (CARD VIEW)
 # ============================================================
 if show_section("3️⃣ Permohonan Menunggu"):
     st.markdown("## 3️⃣ Permohonan Menunggu")
@@ -617,12 +617,13 @@ if show_section("3️⃣ Permohonan Menunggu"):
     if pending_df.empty:
         st.info("Tiada permohonan yang menunggu.")
     else:
-        f_col1, f_col2, f_col3 = st.columns([2, 2, 1])
+        # === Filter + Search ===
+        f_col1, f_col2 = st.columns([2, 2])
 
         with f_col1:
             type_options = ["Semua"] + sorted(pending_df[COL_TYPE].dropna().unique().tolist())
             type_filter = st.selectbox(
-                "Kategori Produk",
+                "Kategori",
                 options=type_options,
                 key="pending_type_filter"
             )
@@ -630,19 +631,14 @@ if show_section("3️⃣ Permohonan Menunggu"):
         with f_col2:
             search_query = st.text_input(
                 "Cari (No. Plate / Nama / Telefon)",
-                placeholder="Contoh: NNA1806 atau Ali",
+                placeholder="Contoh: PNL123 atau Nurul",
                 key="pending_search"
             ).strip()
 
-        with f_col3:
-            sort_options = ["Terbaru", "Terlama", "Nama A-Z"]
-            sort_by = st.selectbox("Susun", options=sort_options, key="pending_sort")
-
+        # Apply filter
         filtered = pending_df.copy()
-
         if type_filter != "Semua":
             filtered = filtered[filtered[COL_TYPE] == type_filter]
-
         if search_query:
             q = search_query.lower()
             filtered = filtered[
@@ -651,107 +647,64 @@ if show_section("3️⃣ Permohonan Menunggu"):
                 | filtered[COL_PHONE].astype(str).str.lower().str.contains(q, na=False)
             ]
 
-        if sort_by == "Terbaru":
-            try: filtered = filtered.sort_values("Timestamp", ascending=False)
-            except Exception: pass
-        elif sort_by == "Terlama":
-            try: filtered = filtered.sort_values("Timestamp", ascending=True)
-            except Exception: pass
-        elif sort_by == "Nama A-Z":
-            filtered = filtered.sort_values(COL_NAME, ascending=True)
-
         st.caption(
             f"Menunjukkan **{len(filtered)}** daripada **{len(pending_df)}** permohonan menunggu. "
             f"(Filter: **{type_filter}**)"
         )
 
-        csv_data = convert_df_to_csv(filtered)
-        st.download_button(
-            "📥 Muat Turun CSV (Senarai Menunggu)",
-            data=csv_data,
-            file_name=f"pending_{datetime.now().strftime('%Y%m%d_%H%M')}.csv",
-            mime="text/csv",
-        )
-
         if filtered.empty:
             st.warning("Tiada permohonan sepadan dengan tapisan anda.")
         else:
-            display_filtered = filtered[[COL_PLATE, COL_NAME, COL_PHONE, COL_TYPE, COL_CAT]].copy()
-            display_filtered[COL_PHONE] = display_filtered[COL_PHONE].apply(format_phone_display)
-            st.dataframe(display_filtered, hide_index=True, use_container_width=True)
+            # === CARD VIEW ===
+            for _, row in filtered.iterrows():
+                plate = row[COL_PLATE]
+                name = row[COL_NAME]
+                v_type = row[COL_TYPE]
+                v_cat = row.get(COL_CAT, "")
+                phone = format_phone_display(row[COL_PHONE])
 
-            st.markdown("---")
-            st.markdown("**Pilih vendor untuk diurus:**")
+                cat_str = f" / {v_cat}" if pd.notna(v_cat) and str(v_cat).strip() else ""
 
-            selected_plate = st.selectbox(
-                "Pilih No. Plate",
-                filtered[COL_PLATE].tolist(),
-                key="pending_selected"
-            )
+                with st.container(border=True):
+                    st.markdown(
+                        f"<div style='font-size: 1rem; font-weight: 600; color: #292524; margin-bottom: 0.25rem;'>"
+                        f"📋 {plate} — {name}"
+                        f"</div>"
+                        f"<div style='font-size: 0.9rem; color: #57534e; margin-bottom: 0.15rem;'>"
+                        f"{v_type}{cat_str}"
+                        f"</div>"
+                        f"<div style='font-size: 0.85rem; color: #78716c; margin-bottom: 0.75rem;'>"
+                        f"📞 {phone}"
+                        f"</div>",
+                        unsafe_allow_html=True,
+                    )
 
-            if selected_plate:
-                vendor = df[df[COL_PLATE] == selected_plate].iloc[0]
-                v_type = vendor[COL_TYPE]
-                v_cat = vendor.get(COL_CAT, "")
+                    b1, b2, b3, _ = st.columns([1, 1, 1, 3])
 
-                if v_type == CAT_FB:
-                    a = df[(df[COL_TYPE] == CAT_FB) & (df[COL_CAT] == v_cat) & (df["Status"] == "Approved")].shape[0]
-                    p = df[(df[COL_TYPE] == CAT_FB) & (df[COL_CAT] == v_cat) & (df["Status"] == "Pending")].shape[0]
-                    remaining = FB_CATEGORY_LIMIT - (a + p)
-                    if remaining > 0:
-                        st.info(f"Kategori **{v_cat}**: {remaining} slot lagi.")
-                    else:
-                        st.warning(f"Kategori **{v_cat}** telah penuh.")
-                elif v_type == CAT_CARBOOT:
-                    st.info(f"Car Boot Total: {cb_committed} / {CAR_BOOT_LIMIT}")
-                else:
-                    ot_c = others_committed()
-                    st.info(f"Others Total: {ot_c} / {OTHERS_LIMIT}")
+                    with b1:
+                        if st.button(
+                            "✓ Lulus",
+                            type="primary",
+                            use_container_width=True,
+                            key=f"approve_{plate}",
+                        ):
+                            confirm_approve_dialog(plate, name)
 
-                st.markdown(
-                    f"**Vendor:** {vendor[COL_NAME]}  \n"
-                    f"**Jenis:** {v_type}  \n"
-                    f"**Kategori F&B:** {v_cat or '-'}  \n"
-                    f"**Telefon:** {format_phone_display(vendor[COL_PHONE])}"
-                )
+                    with b2:
+                        if st.button(
+                            "✗ Tolak",
+                            use_container_width=True,
+                            key=f"reject_{plate}",
+                        ):
+                            confirm_reject_dialog(plate, name)
 
-                current_notes = vendor.get("Notes", "") if pd.notna(vendor.get("Notes")) else ""
-                new_notes = st.text_area("Nota Admin (pilihan)", value=current_notes, key=f"notes_{selected_plate}")
-
-                c1, c2, c3, c4, c5 = st.columns(5)
-                with c1:
-                    if st.button("Luluskan", type="primary", use_container_width=True, key=f"approve_{selected_plate}"):
-                        ok = True
-                        if v_type == CAT_FB:
-                            a = df[(df[COL_TYPE] == CAT_FB) & (df[COL_CAT] == v_cat) & (df["Status"] == "Approved")].shape[0]
-                            if a >= FB_CATEGORY_LIMIT:
-                                st.error(f"Kategori '{v_cat}' telah penuh."); ok = False
-                            elif fb_committed >= FB_OVERALL_LIMIT:
-                                st.error("F&B keseluruhan telah penuh."); ok = False
-                        elif v_type == CAT_CARBOOT:
-                            if cb_committed >= CAR_BOOT_LIMIT:
-                                st.error("Car Boot telah penuh."); ok = False
-                        else:
-                            if others_committed() >= OTHERS_LIMIT:
-                                st.error("Others telah penuh."); ok = False
-
-                        if ok:
-                            confirm_approve_dialog(selected_plate, vendor[COL_NAME])
-                with c2:
-                    if st.button("Tolak", use_container_width=True, key=f"reject_{selected_plate}"):
-                        confirm_reject_dialog(selected_plate, vendor[COL_NAME])
-                with c3:
-                    if st.button("Edit", use_container_width=True, key=f"edit_{selected_plate}"):
-                        edit_vendor_dialog(selected_plate)
-                with c4:
-                    if st.button("Simpan Nota", use_container_width=True, key=f"savenotes_{selected_plate}"):
-                        df.loc[df[COL_PLATE] == selected_plate, "Notes"] = str(new_notes)
-                        safe_update(conn, df)
-                        st.toast("Nota disimpan", icon="📝")
-                        st.rerun()
-                with c5:
-                    if st.button("Padam", use_container_width=True, key=f"delete_{selected_plate}"):
-                        confirm_delete_dialog(selected_plate, vendor[COL_NAME])
+                    with b3:
+                        if st.button(
+                            "✎ Edit",
+                            use_container_width=True,
+                            key=f"edit_{plate}",
+                        ):
+                            edit_vendor_dialog(plate)
 
     st.divider()
 
