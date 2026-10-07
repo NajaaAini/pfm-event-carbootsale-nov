@@ -22,13 +22,46 @@ def apply_style():
     }
 
     /* ========================================================= */
-    /* === SIDEBAR === */
+    /* === SIDEBAR — FORCE ALWAYS OPEN (mobile + desktop) === */
     /* ========================================================= */
     [data-testid="stSidebar"] {
         background-color: #f2ebe0;
         border-right: 1px solid #e8dcc7;
         min-width: 260px !important;
+        width: 260px !important;
+        transform: none !important;
+        transition: none !important;
+        margin-left: 0 !important;
     }
+    [data-testid="stSidebar"][aria-expanded="false"] {
+        margin-left: 0 !important;
+        transform: none !important;
+        width: 260px !important;
+        min-width: 260px !important;
+        display: block !important;
+        visibility: visible !important;
+    }
+    [data-testid="stSidebar"][aria-expanded="true"] {
+        margin-left: 0 !important;
+        transform: none !important;
+        width: 260px !important;
+        min-width: 260px !important;
+    }
+
+    /* Hide collapse button + collapsed control (mobile + desktop) */
+    [data-testid="stSidebarCollapsedControl"] {
+        display: none !important;
+    }
+    [data-testid="stSidebarCollapseButton"] {
+        display: none !important;
+    }
+    [data-testid="collapsedControl"] {
+        display: none !important;
+    }
+    button[kind="header"] {
+        display: none !important;
+    }
+
     [data-testid="stSidebar"] h3,
     [data-testid="stSidebar"] p,
     [data-testid="stSidebar"] label,
@@ -192,6 +225,66 @@ def apply_style():
     div[data-testid="stHorizontalBlock"] button[kind="primary"] * {
         color: #ffffff !important;
         font-weight: 700 !important;
+    }
+
+    /* ========================================================= */
+    /* === MAIN AREA — TEXT COLOR (FIX WHITE-ON-WHITE) === */
+    /* ========================================================= */
+    [data-testid="stAppViewContainer"],
+    [data-testid="stMain"],
+    section.main,
+    .main {
+        color: #44403c !important;
+        background-color: #faf7f2 !important;
+    }
+
+    [data-testid="stAppViewContainer"] p,
+    [data-testid="stAppViewContainer"] span,
+    [data-testid="stAppViewContainer"] label,
+    [data-testid="stAppViewContainer"] li,
+    [data-testid="stMain"] p,
+    [data-testid="stMain"] span,
+    [data-testid="stMain"] label {
+        color: #44403c !important;
+    }
+
+    [data-testid="stAppViewContainer"] h1,
+    [data-testid="stAppViewContainer"] h2,
+    [data-testid="stAppViewContainer"] h3,
+    [data-testid="stAppViewContainer"] h4 {
+        color: #292524 !important;
+    }
+
+    [data-testid="stAppViewContainer"] .stMarkdown,
+    [data-testid="stAppViewContainer"] .stMarkdown p,
+    [data-testid="stAppViewContainer"] .stMarkdown span {
+        color: #44403c !important;
+    }
+
+    [data-testid="stAppViewContainer"] [data-testid="stText"],
+    [data-testid="stAppViewContainer"] [data-testid="stCaptionContainer"] {
+        color: #44403c !important;
+    }
+
+    [data-testid="stAppViewContainer"] [data-testid="stAlert"] p,
+    [data-testid="stAppViewContainer"] [data-testid="stAlert"] span,
+    [data-testid="stAppViewContainer"] [data-testid="stAlert"] div {
+        color: #44403c !important;
+    }
+
+    [data-testid="stAppViewContainer"] input,
+    [data-testid="stAppViewContainer"] textarea {
+        color: #44403c !important;
+    }
+
+    [data-testid="stAppViewContainer"] input::placeholder,
+    [data-testid="stAppViewContainer"] textarea::placeholder {
+        color: #a8a29e !important;
+    }
+
+    [data-testid="stAppViewContainer"] code,
+    [data-testid="stAppViewContainer"] pre {
+        color: #44403c !important;
     }
 
     /* ========================================================= */
