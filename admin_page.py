@@ -1,5 +1,6 @@
 import streamlit as st
 import pandas as pd
+import re
 from streamlit_gsheets import GSheetsConnection
 from datetime import date, timedelta, datetime
 from style import apply_style
@@ -39,6 +40,7 @@ COL_PHONE = "Nombor Telefon/Phone Number"
 COL_TYPE = "Kategori Produk/Product Category"
 COL_CAT = "F&B CATEGORY"
 COL_PLATE = "Plate Number"
+COL_ADDON = "ADD ON"
 
 PROOF_COL = "Upload Bukti Bayaran"
 
@@ -65,7 +67,6 @@ def normalize_status(raw):
 
 
 def clean_phone_raw(raw):
-    """Bersihkan nombor telefon — buang petik, .0."""
     if raw is None or pd.isna(raw):
         return ""
     s = str(raw).strip()
@@ -76,7 +77,6 @@ def clean_phone_raw(raw):
 
 
 def normalize_phone(raw):
-    """Normalize untuk WhatsApp — tambah 60 depan."""
     if raw is None or pd.isna(raw):
         return ""
     digits = "".join(filter(str.isdigit, str(raw)))
@@ -91,11 +91,9 @@ def normalize_phone(raw):
 
 
 def format_phone_display(raw):
-    """Format untuk display — 011-2363 6997."""
     cleaned = clean_phone_raw(raw)
     if not cleaned:
         return "-"
-
     if cleaned.startswith("0") and cleaned[1:].isdigit():
         digits = cleaned
     else:
@@ -104,12 +102,56 @@ def format_phone_display(raw):
             digits = "0" + digits[2:]
         elif digits.startswith("1"):
             digits = "0" + digits
-
     if len(digits) == 11:
         return f"{digits[:3]}-{digits[3:7]} {digits[7:]}"
     elif len(digits) == 10:
         return f"{digits[:2]}-{digits[2:6]} {digits[6:]}"
     return digits
+
+
+# ============================================================
+# HELPER — HARGA
+# ============================================================
+def get_category_price(vendor_type):
+    """Harga kategori."""
+    try:
+        if vendor_type == "Car Boot Sales":
+            return float(st.secrets["event"]["price_car_boot"])
+        elif vendor_type == "F&B":
+            return float(st.secrets["event"]["price_fb"])
+        else:
+            return float(st.secrets["event"]["price_others"])
+    except Exception:
+        return 0.0
+
+
+def get_deposit(vendor_type):
+    """Deposit refundable ikut kategori."""
+    try:
+        if vendor_type == "F&B":
+            return float(st.secrets["event"]["deposit_fb"])
+        return 0.0
+    except Exception:
+        return 0.0
+
+
+def get_addon_price(addon_str):
+    """Extract harga ADD ON dari string."""
+    if addon_str is None or pd.isna(addon_str):
+        return 0.0
+    try:
+        matches = re.findall(r"RM\s*([0-9]+(?:\.[0-9]+)?)", str(addon_str))
+        return sum(float(m) for m in matches)
+    except Exception:
+        return 0.0
+
+
+def format_rm(amount):
+    """Format RM."""
+    try:
+        return f"RM {float(amount):,.2f}"
+    except (ValueError, TypeError):
+        return "RM 0.00"
 
 
 # ============================================================
@@ -212,7 +254,6 @@ def others_pending():
 
 
 def safe_update(conn, df):
-    """Update Sheet dengan paksa Notes + Phone jadi string."""
     if "Notes" in df.columns:
         df["Notes"] = df["Notes"].astype("object").fillna("").astype(str)
     if COL_PHONE in df.columns:
@@ -617,16 +658,11 @@ if show_section("3️⃣ Permohonan Menunggu"):
     if pending_df.empty:
         st.info("Tiada permohonan yang menunggu.")
     else:
-        # === Filter + Search ===
         f_col1, f_col2 = st.columns([2, 2])
 
         with f_col1:
             type_options = ["Semua"] + sorted(pending_df[COL_TYPE].dropna().unique().tolist())
-            type_filter = st.selectbox(
-                "Kategori",
-                options=type_options,
-                key="pending_type_filter"
-            )
+            type_filter = st.selectbox("Kategori", options=type_options, key="pending_type_filter")
 
         with f_col2:
             search_query = st.text_input(
@@ -635,7 +671,6 @@ if show_section("3️⃣ Permohonan Menunggu"):
                 key="pending_search"
             ).strip()
 
-        # Apply filter
         filtered = pending_df.copy()
         if type_filter != "Semua":
             filtered = filtered[filtered[COL_TYPE] == type_filter]
@@ -655,7 +690,6 @@ if show_section("3️⃣ Permohonan Menunggu"):
         if filtered.empty:
             st.warning("Tiada permohonan sepadan dengan tapisan anda.")
         else:
-            # === CARD VIEW ===
             for _, row in filtered.iterrows():
                 plate = row[COL_PLATE]
                 name = row[COL_NAME]
@@ -673,116 +707,117 @@ if show_section("3️⃣ Permohonan Menunggu"):
                         f"<div style='font-size: 0.9rem; color: #57534e; margin-bottom: 0.15rem;'>"
                         f"{v_type}{cat_str}"
                         f"</div>"
-                        f"<div style='font-size: 0.85rem; color: #78716c; margin-bottom: 0.75rem;'>"
+                        f"<div style='font-size: 0.85rem; color: #78716c; margin-bottom: 0.5rem;'>"
                         f"📞 {phone}"
                         f"</div>",
                         unsafe_allow_html=True,
                     )
 
+                    # Info deposit untuk F&B
+                    dep = get_deposit(v_type)
+                    if dep > 0:
+                        st.caption(f"💰 Deposit: {format_rm(dep)} (refundable)")
+
                     b1, b2, b3, _ = st.columns([1, 1, 1, 3])
 
                     with b1:
-                        if st.button(
-                            "✓ Lulus",
-                            type="primary",
-                            use_container_width=True,
-                            key=f"approve_{plate}",
-                        ):
+                        if st.button("✓ Lulus", type="primary", use_container_width=True, key=f"approve_{plate}"):
                             confirm_approve_dialog(plate, name)
 
                     with b2:
-                        if st.button(
-                            "✗ Tolak",
-                            use_container_width=True,
-                            key=f"reject_{plate}",
-                        ):
+                        if st.button("✗ Tolak", use_container_width=True, key=f"reject_{plate}"):
                             confirm_reject_dialog(plate, name)
 
                     with b3:
-                        if st.button(
-                            "✎ Edit",
-                            use_container_width=True,
-                            key=f"edit_{plate}",
-                        ):
+                        if st.button("✎ Edit", use_container_width=True, key=f"edit_{plate}"):
                             edit_vendor_dialog(plate)
 
     st.divider()
 
 
 # ============================================================
-# SECTION 4 — PEMANTAUAN BAYARAN
+# SECTION 4 — REKOD BAYARAN
 # ============================================================
 if show_section("4️⃣ Rekod Bayaran"):
     st.markdown("## 4️⃣ Rekod Bayaran")
     st.caption("Tandakan 'Sudah Bayar' untuk vendor yang telah membuat bayaran.")
-
-    col_ref, _ = st.columns([1, 4])
-    with col_ref:
-        if st.button("🔄 Refresh Data", use_container_width=True):
-            st.cache_data.clear()
-            st.rerun()
 
     approved_df = df[df["Status"] == "Approved"]
 
     if approved_df.empty:
         st.info("Belum ada vendor yang diluluskan.")
     else:
+        # === METRIC ===
         total_approved = len(approved_df)
         total_paid = int(approved_df["Paid"].sum())
         total_unpaid = total_approved - total_paid
 
-        uploaded_count = sum(
-            1 for p in approved_df[COL_PLATE] if get_vendor_proof(p)[0]
-        )
+        # Kira jumlah kewangan
+        paid_df = approved_df[approved_df["Paid"]]
+        unpaid_df = approved_df[~approved_df["Paid"]]
+
+        total_collected_rm = 0.0
+        total_deposit_collected_rm = 0.0
+        for _, r in paid_df.iterrows():
+            v_t = str(r.get(COL_TYPE, "")).strip()
+            total_collected_rm += get_category_price(v_t) + get_addon_price(r.get(COL_ADDON, ""))
+            total_deposit_collected_rm += get_deposit(v_t)
+
+        total_expected_rm = 0.0
+        total_deposit_expected_rm = 0.0
+        for _, r in approved_df.iterrows():
+            v_t = str(r.get(COL_TYPE, "")).strip()
+            total_expected_rm += get_category_price(v_t) + get_addon_price(r.get(COL_ADDON, ""))
+            total_deposit_expected_rm += get_deposit(v_t)
 
         mc1, mc2, mc3, mc4 = st.columns(4)
         mc1.metric("Diluluskan", total_approved)
         mc2.metric("Sudah Bayar", total_paid)
         mc3.metric("Belum Bayar", total_unpaid)
-        mc4.metric("Bukti Dihantar", uploaded_count)
+        mc4.metric("Bukti Dihantar", sum(1 for p in approved_df[COL_PLATE] if get_vendor_proof(p)[0]))
+
+        # === RINGKASAN KEWANGAN ===
+        st.markdown("---")
+        st.markdown("### 💰 Ringkasan Kewangan")
+
+        wc1, wc2, wc3 = st.columns(3)
+        wc1.metric("✅ Diterima", format_rm(total_collected_rm))
+        wc2.metric("⏳ Belum Diterima", format_rm(total_expected_rm - total_collected_rm))
+        wc3.metric("💰 Total Expected", format_rm(total_expected_rm))
+
+        # Deposit berasingan
+        if total_deposit_expected_rm > 0:
+            wd1, wd2 = st.columns(2)
+            wd1.metric("🔒 Deposit Terkumpul", format_rm(total_deposit_collected_rm))
+            wd2.metric("🔒 Deposit Dijangka", format_rm(total_deposit_expected_rm))
+
+        # Progress
+        if total_expected_rm > 0:
+            progress_pct = total_collected_rm / total_expected_rm
+            st.progress(
+                min(progress_pct, 1.0),
+                text=f"Kutipan: {progress_pct*100:.1f}% ({format_rm(total_collected_rm)} / {format_rm(total_expected_rm)})"
+            )
 
         st.markdown("---")
 
-        fcol1, fcol2 = st.columns([2, 2])
-        with fcol1:
-            payment_filter = st.selectbox(
-                "Filter",
-                options=[
-                    "Semua",
-                    "Belum Bayar",
-                    "Sudah Bayar",
-                    "Belum Upload Bukti",
-                    "Sudah Upload Bukti",
-                ],
-                key="payment_filter",
-            )
-        with fcol2:
-            search_payment = st.text_input(
-                "Cari (No. Plate / Nama)",
-                placeholder="Contoh: NNA1806 atau Ali",
-                key="payment_search",
-            ).strip().lower()
+        # === FILTER ===
+        payment_filter = st.selectbox(
+            "Filter",
+            options=["Semua", "Belum Bayar", "Sudah Bayar", "Belum Upload Bukti", "Sudah Upload Bukti"],
+            key="payment_filter",
+        )
 
         if payment_filter == "Belum Bayar":
             view_df = approved_df[~approved_df["Paid"]]
         elif payment_filter == "Sudah Bayar":
             view_df = approved_df[approved_df["Paid"]]
         elif payment_filter == "Belum Upload Bukti":
-            view_df = approved_df[
-                ~approved_df[COL_PLATE].apply(lambda p: bool(get_vendor_proof(p)[0]))
-            ]
+            view_df = approved_df[~approved_df[COL_PLATE].apply(lambda p: bool(get_vendor_proof(p)[0]))]
         elif payment_filter == "Sudah Upload Bukti":
-            view_df = approved_df[
-                approved_df[COL_PLATE].apply(lambda p: bool(get_vendor_proof(p)[0]))
-            ]
+            view_df = approved_df[approved_df[COL_PLATE].apply(lambda p: bool(get_vendor_proof(p)[0]))]
         else:
             view_df = approved_df
-
-        if search_payment:
-            view_df = view_df[
-                view_df[COL_PLATE].astype(str).str.lower().str.contains(search_payment, na=False)
-                | view_df[COL_NAME].astype(str).str.lower().str.contains(search_payment, na=False)
-            ]
 
         st.caption(f"Menunjukkan **{len(view_df)}** daripada **{len(approved_df)}** vendor.")
 
@@ -794,9 +829,16 @@ if show_section("4️⃣ Rekod Bayaran"):
 
                 for _, row in view_df.iterrows():
                     plate = row[COL_PLATE]
-                    proof_url, folder_url, upload_time = get_vendor_proof(plate)
+                    proof_url, folder_url, _ = get_vendor_proof(plate)
 
-                    cols = st.columns([3, 2, 2, 1])
+                    # Kira jumlah untuk vendor ini
+                    v_t = str(row.get(COL_TYPE, "")).strip()
+                    v_cat_p = get_category_price(v_t)
+                    v_dep = get_deposit(v_t)
+                    v_add = get_addon_price(row.get(COL_ADDON, ""))
+                    v_total = v_cat_p + v_dep + v_add
+
+                    cols = st.columns([3, 2, 1, 1])
 
                     with cols[0]:
                         status_icon = "✅" if proof_url else "⬜"
@@ -808,17 +850,16 @@ if show_section("4️⃣ Rekod Bayaran"):
 
                     with cols[1]:
                         if proof_url:
-                            st.markdown(f"[📄 Bukti Bayaran]({proof_url})")
-                            if upload_time:
-                                st.caption(f"📅 {upload_time}")
+                            st.markdown(f"[📄 Bukti]({proof_url})")
+                            if folder_url:
+                                st.markdown(f"[📁 Folder]({folder_url})")
                         else:
-                            st.caption("_Belum upload bukti_")
+                            st.caption("_Belum upload_")
 
                     with cols[2]:
-                        if folder_url:
-                            st.markdown(f"[📁 Buka Folder]({folder_url})")
-                        else:
-                            st.caption("—")
+                        st.markdown(f"**{format_rm(v_total)}**")
+                        if v_dep > 0:
+                            st.caption(f"🔒 {format_rm(v_dep)}")
 
                     with cols[3]:
                         new_val = st.checkbox(
