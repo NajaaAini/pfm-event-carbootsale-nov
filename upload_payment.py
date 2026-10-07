@@ -1,6 +1,7 @@
 import streamlit as st
 import pandas as pd
 import re
+from urllib.parse import quote
 from datetime import datetime
 from streamlit_gsheets import GSheetsConnection
 from style import apply_style
@@ -25,10 +26,36 @@ COL_ADDON = "ADD ON"
 
 PROOF_COL = "Upload Bukti Bayaran"
 
+# Admin WhatsApp
+ADMIN_WA_NUMBER = "601157727459"
+ADMIN_WA_DEFAULT_MSG = "Hi! PFM Car Boot Sale November"
+
 FB_CATEGORIES = [
     "Local Food", "Dessert", "Coffee/Air", "Grill and BBQ",
     "Deep-Fry", "Italian/Western Food", "Japanese Food", "Chinese Food",
 ]
+
+
+# ============================================================
+# HELPER — WHATSAPP
+# ============================================================
+def whatsapp_button(label, message):
+    """Render butang WhatsApp dengan mesej pre-filled."""
+    wa_url = f"https://wa.me/{ADMIN_WA_NUMBER}?text={quote(message)}"
+    st.markdown(f"""
+    <a href="{wa_url}" target="_blank" style="
+        display: block;
+        background-color: #25D366;
+        color: #ffffff;
+        text-align: center;
+        padding: 0.85rem 1.5rem;
+        border-radius: 8px;
+        text-decoration: none;
+        font-weight: 600;
+        font-size: 1rem;
+        margin-top: 0.75rem;
+    ">{label}</a>
+    """, unsafe_allow_html=True)
 
 
 # ============================================================
@@ -145,6 +172,10 @@ if submitted:
     if matched.empty:
         st.error(f"❌ No. Plate **{plate_input}** tidak dijumpai dalam sistem.")
         st.info("Sila pastikan No. Plate betul, atau daftar terlebih dahulu.")
+        whatsapp_button(
+            "💬 Tanya Admin via WhatsApp",
+            f"Hi! PFM Car Boot Sale — Saya nak tanya pasal pendaftaran (Plate: {plate_input})"
+        )
         st.stop()
 
     vendor = matched.iloc[0]
@@ -159,12 +190,20 @@ if submitted:
             f"⚠️ Permohonan anda masih **Menunggu Semakan**. "
             "Bukti bayaran hanya boleh dihantar selepas permohonan diluluskan."
         )
+        whatsapp_button(
+            "💬 Tanya Admin via WhatsApp",
+            f"Hi! PFM Car Boot Sale — Permohonan saya masih pending (Plate: {plate_input})"
+        )
         st.stop()
 
     if status == "Rejected":
         st.error(
             "❌ Permohonan anda **Tidak Berjaya**. "
             "Sila hubungi admin untuk maklumat lanjut."
+        )
+        whatsapp_button(
+            "💬 Tanya Admin via WhatsApp",
+            f"Hi! PFM Car Boot Sale — Nak tanya pasal permohonan yang ditolak (Plate: {plate_input})"
         )
         st.stop()
 
@@ -173,10 +212,18 @@ if submitted:
             "🚫 Slot anda telah **Dibatalkan** kerana bayaran tidak diterima "
             "sebelum tarikh akhir. Hubungi admin jika ini satu kesilapan."
         )
+        whatsapp_button(
+            "💬 Tanya Admin via WhatsApp",
+            f"Hi! PFM Car Boot Sale — Slot saya telah dibatalkan (Plate: {plate_input})"
+        )
         st.stop()
 
     if status != "Approved":
         st.error(f"⚠️ Status tidak dikenali: **{status}**. Sila hubungi admin.")
+        whatsapp_button(
+            "💬 Tanya Admin via WhatsApp",
+            f"Hi! PFM Car Boot Sale — Status tidak dikenali (Plate: {plate_input})"
+        )
         st.stop()
 
     st.success(f"✅ Vendor dijumpai: **{vendor_name}** ({vendor_type})")
@@ -192,7 +239,6 @@ if submitted:
 
     # === Kad harga ===
     if total_price > 0:
-        # Breakdown HTML
         breakdown_html = f'<div>📦 {vendor_type}: <b>{format_rm(cat_price)}</b></div>'
         if addon_price > 0:
             breakdown_html += f'<div>➕ Add On: <b>{format_rm(addon_price)}</b></div>'
@@ -203,7 +249,7 @@ if submitted:
             border: 2px solid #f0e6d6;
             border-radius: 12px;
             padding: 1.5rem 1.75rem;
-            margin: 1rem 0 1.5rem 0;
+            margin: 1rem 0 0.75rem 0;
         ">
             <div style="
                 font-size: 0.8rem; color: #78716c;
@@ -236,10 +282,20 @@ if submitted:
             f"💡 **Sila buat bayaran sebanyak {format_rm(total_price)}** "
             "sebelum upload bukti bayaran di bawah."
         )
+
+        # === BUTANG WHATSAPP ===
+        whatsapp_button(
+            "💬 Ada Pertanyaan? Tanya Admin via WhatsApp",
+            f"Hi! PFM Car Boot Sale — Saya nak tanya pasal bayaran (Plate: {plate_input}, Kategori: {vendor_type})"
+        )
     else:
         st.warning(
             "⚠️ Total harga tidak dapat dikira secara automatik. "
             "Sila hubungi admin untuk jumlah bayaran."
+        )
+        whatsapp_button(
+            "💬 Tanya Admin via WhatsApp",
+            f"Hi! PFM Car Boot Sale — Nak tanya pasal jumlah bayaran (Plate: {plate_input})"
         )
 
     # ---- Semak jika sudah upload sebelum ini ----
@@ -249,12 +305,10 @@ if submitted:
             columns=["Timestamp", "Plate Number", PROOF_COL, "FolderUrl"]
         )
 
-    # Pastikan column wujud
     for col in ["Timestamp", "Plate Number", PROOF_COL, "FolderUrl"]:
         if col not in existing_payments.columns:
             existing_payments[col] = ""
 
-    # Cari rekod lama untuk plate ni
     already_uploaded = existing_payments[
         existing_payments["Plate Number"].astype(str).str.upper().str.replace(" ", "")
         == normalized_input
@@ -285,6 +339,10 @@ if submitted:
 
     if not view_url:
         st.error("❌ Gagal upload ke Google Drive. Sila cuba lagi atau hubungi admin.")
+        whatsapp_button(
+            "💬 Lapor Masalah ke Admin",
+            f"Hi! PFM Car Boot Sale — Upload bukti bayaran saya gagal (Plate: {plate_input})"
+        )
         st.stop()
 
     # ---- Simpan rekod ke sheet Payments ----
@@ -318,6 +376,12 @@ if submitted:
     st.info(
         "📌 **Seterusnya:** Admin akan semak bukti bayaran anda dan tanda "
         "'Sudah Bayar' dalam sistem. Sila sertai WhatsApp Group untuk update terkini."
+    )
+
+    # === BUTANG WHATSAPP — selepas berjaya ===
+    whatsapp_button(
+        "💬 Ada Pertanyaan? Tanya Admin via WhatsApp",
+        f"Hi! PFM Car Boot Sale — Bukti bayaran saya telah dihantar (Plate: {plate_input})"
     )
 
     if uploaded.type and uploaded.type.startswith("image/"):
