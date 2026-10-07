@@ -295,14 +295,14 @@ if submitted and query:
                     st.success("✓ **Permohonan Diluluskan**")
                     st.markdown("Tahniah! Permohonan anda telah diluluskan. Sila buat bayaran dan upload bukti untuk konfirmasi slot anda.")
 
-                # === KAD MAKLUMAT PEMBAYARAN ===
+                               # === KAD MAKLUMAT PEMBAYARAN ===
                 with st.container(border=True):
-                    st.caption("💳 MAKLUMAT PEMBAYARAN")
-                    st.markdown("** Bank:** MAYBANK")
-                    st.markdown("** Nama Akaun:** PRINTHERO MERCHANDISE SDN. BHD.")
-                    st.markdown("** No. Akaun:** 557054621057")
-                    st.markdown("** Remark:** PFMCBS (4 digit terakhir No. Telefon)")
-                    st.markdown("** Contoh:** PFMCBS1234")
+                    st.caption("MAKLUMAT PEMBAYARAN")
+                    st.markdown("<b>Bank:</b> MAYBANK", unsafe_allow_html=True)
+                    st.markdown("<b>Nama Akaun:</b> PRINTHERO MERCHANDISE SDN. BHD.", unsafe_allow_html=True)
+                    st.markdown("<b>No. Akaun:</b> 557054621057", unsafe_allow_html=True)
+                    st.markdown("<b>Remark:</b> PFMCBS (4 digit terakhir No. Telefon)", unsafe_allow_html=True)
+                    st.markdown("<b>Contoh:</b> PFMCBS1234", unsafe_allow_html=True)
 
                 # === NOTA PENTING ===
                 st.warning("⚠️ **Penting:** Kalau bayaran tidak diterima **2 hari sebelum event**, slot anda akan dibatalkan automatik.")
