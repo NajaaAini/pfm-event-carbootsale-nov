@@ -65,18 +65,14 @@ def normalize_status(raw):
 
 
 def clean_phone_raw(raw):
-    """Bersihkan nombor telefon — buang petik, .0, dan pastikan leading zero."""
+    """Bersihkan nombor telefon — buang petik, .0."""
     if raw is None or pd.isna(raw):
         return ""
     s = str(raw).strip()
-    # Buang petik tunggal depan (dari Google Sheets text format)
     s = s.lstrip("'")
-    # Buang .0 (dari float)
     if s.endswith(".0"):
         s = s[:-2]
-    # Buang space, dash, dan karakter bukan digit
-    s = s.strip()
-    return s
+    return s.strip()
 
 
 def normalize_phone(raw):
@@ -99,19 +95,16 @@ def format_phone_display(raw):
     cleaned = clean_phone_raw(raw)
     if not cleaned:
         return "-"
-    
-    # Kalau dah ada 0 depan, terus format
+
     if cleaned.startswith("0") and cleaned[1:].isdigit():
         digits = cleaned
     else:
-        # Tambah 0 kalau hilang (mula dengan 1)
         digits = "".join(filter(str.isdigit, cleaned))
         if digits.startswith("60"):
             digits = "0" + digits[2:]
         elif digits.startswith("1"):
             digits = "0" + digits
-        # else kekal
-    
+
     if len(digits) == 11:
         return f"{digits[:3]}-{digits[3:7]} {digits[7:]}"
     elif len(digits) == 10:
@@ -131,11 +124,11 @@ if df is None:
 df["Paid"] = df["Paid"].fillna(False).astype(bool)
 df["Status"] = df["Status"].apply(normalize_status)
 
-# === FIX: Paksa column telefon jadi string bersih ===
+# FIX: Paksa column telefon jadi string bersih
 if COL_PHONE in df.columns:
     df[COL_PHONE] = df[COL_PHONE].apply(clean_phone_raw)
 
-# === FIX: Pastikan Notes wujud + dtype string ===
+# FIX: Pastikan Notes wujud + dtype string
 if "Notes" not in df.columns:
     df["Notes"] = ""
 df["Notes"] = df["Notes"].astype("object").fillna("").astype(str)
@@ -214,7 +207,6 @@ with st.sidebar:
             "2️⃣ Tarikh Akhir Bayaran",
             "3️⃣ Pendaftaran Baru",
             "4️⃣ Rekod Bayaran",
-            "5️⃣ WhatsApp",
         ],
         label_visibility="collapsed",
         key="admin_nav",
@@ -373,6 +365,45 @@ def confirm_delete_dialog(plate, vendor_name):
 
 
 # ============================================================
+# 📞 WHATSAPP GROUP — ATAS PAGE (sentiasa nampak)
+# ============================================================
+try:
+    wa_group = st.secrets["event"]["whatsapp_group"]
+except Exception:
+    wa_group = ""
+
+if wa_group:
+    st.markdown(f"""
+    <div style="
+        background-color: #f2ebe0;
+        border: 1px solid #e8dcc7;
+        border-radius: 12px;
+        padding: 1.25rem 1.5rem;
+        margin-bottom: 1.5rem;
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        gap: 1rem;
+    ">
+        <div>
+            <div style="font-weight: 600; color: #292524; font-size: 1rem;">💬 WhatsApp Group Vendor</div>
+            <div style="color: #78716c; font-size: 0.85rem; margin-top: 0.25rem;">Hantar mesej terus dalam group</div>
+        </div>
+        <a href="{wa_group}" target="_blank" style="
+            background-color: #78350f;
+            color: #ffffff;
+            padding: 0.6rem 1.25rem;
+            border-radius: 8px;
+            text-decoration: none;
+            font-weight: 600;
+            font-size: 0.9rem;
+            white-space: nowrap;
+        ">Buka Group →</a>
+    </div>
+    """, unsafe_allow_html=True)
+
+
+# ============================================================
 # SECTION 1 — PAPAN PEMANTAUAN KUOTA
 # ============================================================
 if show_section("1️⃣ Papan Pemantauan Kuota"):
@@ -515,7 +546,7 @@ if show_section("3️⃣ Permohonan Menunggu"):
 
 
 # ============================================================
-# SECTION 3 — PERMOHONAN MENUNGGU
+# SECTION 3 — PERMOHONAN MENUNGGU (DROPDOWN FILTER)
 # ============================================================
 if show_section("3️⃣ Permohonan Menunggu"):
     st.markdown("## 3️⃣ Permohonan Menunggu")
@@ -526,24 +557,33 @@ if show_section("3️⃣ Permohonan Menunggu"):
     if pending_df.empty:
         st.info("Tiada permohonan yang menunggu.")
     else:
+        # === DROPDOWN FILTER KATEGORI ===
         f_col1, f_col2, f_col3 = st.columns([2, 2, 1])
 
         with f_col1:
+            type_options = ["Semua"] + sorted(pending_df[COL_TYPE].dropna().unique().tolist())
+            type_filter = st.selectbox(
+                "Tapis Kategori Produk",
+                options=type_options,
+                key="pending_type_filter"
+            )
+
+        with f_col2:
             search_query = st.text_input(
                 "Cari (No. Plate / Nama / Telefon)",
                 placeholder="Contoh: NNA1806 atau Ali",
                 key="pending_search"
             ).strip()
 
-        with f_col2:
-            type_options = ["Semua"] + pending_df[COL_TYPE].dropna().unique().tolist()
-            type_filter = st.selectbox("Kategori", options=type_options, key="pending_type")
-
         with f_col3:
             sort_options = ["Terbaru", "Terlama", "Nama A-Z"]
             sort_by = st.selectbox("Susun", options=sort_options, key="pending_sort")
 
+        # Apply filter
         filtered = pending_df.copy()
+
+        if type_filter != "Semua":
+            filtered = filtered[filtered[COL_TYPE] == type_filter]
 
         if search_query:
             q = search_query.lower()
@@ -552,9 +592,6 @@ if show_section("3️⃣ Permohonan Menunggu"):
                 | filtered[COL_NAME].astype(str).str.lower().str.contains(q, na=False)
                 | filtered[COL_PHONE].astype(str).str.lower().str.contains(q, na=False)
             ]
-
-        if type_filter != "Semua":
-            filtered = filtered[filtered[COL_TYPE] == type_filter]
 
         if sort_by == "Terbaru":
             try: filtered = filtered.sort_values("Timestamp", ascending=False)
@@ -565,8 +602,12 @@ if show_section("3️⃣ Permohonan Menunggu"):
         elif sort_by == "Nama A-Z":
             filtered = filtered.sort_values(COL_NAME, ascending=True)
 
-        st.caption(f"Menunjukkan **{len(filtered)}** daripada **{len(pending_df)}** permohonan menunggu.")
+        st.caption(
+            f"Menunjukkan **{len(filtered)}** daripada **{len(pending_df)}** permohonan menunggu. "
+            f"(Filter: **{type_filter}**)"
+        )
 
+        # Download CSV
         csv_data = convert_df_to_csv(filtered)
         st.download_button(
             "📥 Muat Turun CSV (Senarai Menunggu)",
@@ -576,45 +617,17 @@ if show_section("3️⃣ Permohonan Menunggu"):
         )
 
         if filtered.empty:
-            st.warning("Tiada permohonan sepadan dengan carian anda.")
+            st.warning("Tiada permohonan sepadan dengan tapisan anda.")
         else:
-            st.markdown("**Pilih vendor:**")
+            # === TABLE ===
+            display_filtered = filtered[[COL_PLATE, COL_NAME, COL_PHONE, COL_TYPE, COL_CAT]].copy()
+            display_filtered[COL_PHONE] = display_filtered[COL_PHONE].apply(format_phone_display)
+            st.dataframe(display_filtered, hide_index=True, use_container_width=True)
 
-            bulk_selected = []
-            for _, row in filtered.iterrows():
-                c1, c2 = st.columns([1, 9])
-                with c1:
-                    checked = st.checkbox("", key=f"bulk_{row[COL_PLATE]}")
-                with c2:
-                    cat_str = f" / {row[COL_CAT]}" if pd.notna(row[COL_CAT]) and str(row[COL_CAT]).strip() else ""
-                    st.markdown(f"**{row[COL_PLATE]}** — {row[COL_NAME]} ({row[COL_TYPE]}{cat_str})")
-                if checked:
-                    bulk_selected.append(row[COL_PLATE])
+            st.markdown("---")
 
-            if bulk_selected:
-                st.info(f"**{len(bulk_selected)}** vendor dipilih.")
-                bc1, bc2 = st.columns(2)
-                with bc1:
-                    if st.button(f"✅ Luluskan {len(bulk_selected)} Vendor", type="primary", use_container_width=True):
-                        for plate in bulk_selected:
-                            df.loc[df[COL_PLATE] == plate, "Status"] = "Approved"
-                        safe_update(conn, df)
-                        log_action(conn, ADMIN_NAME, "BULK_APPROVE", f"{len(bulk_selected)} vendors", "Pukal")
-                        st.toast(f"✅ {len(bulk_selected)} vendor diluluskan", icon="✅")
-                        st.rerun()
-                with bc2:
-                    if st.button(f"❌ Tolak {len(bulk_selected)} Vendor", use_container_width=True):
-                        for plate in bulk_selected:
-                            df.loc[df[COL_PLATE] == plate, "Status"] = "Rejected"
-                        safe_update(conn, df)
-                        log_action(conn, ADMIN_NAME, "BULK_REJECT", f"{len(bulk_selected)} vendors", "Pukal")
-                        st.toast(f"❌ {len(bulk_selected)} vendor ditolak", icon="❌")
-                        st.rerun()
-
-            st.divider()
-
-            st.markdown("**Atau urus satu-satu:**")
-            st.dataframe(filtered, hide_index=True, use_container_width=True)
+            # === URUS SATU-SATU ===
+            st.markdown("**Pilih vendor untuk diurus:**")
 
             selected_plate = st.selectbox(
                 "Pilih No. Plate",
@@ -627,6 +640,7 @@ if show_section("3️⃣ Permohonan Menunggu"):
                 v_type = vendor[COL_TYPE]
                 v_cat = vendor.get(COL_CAT, "")
 
+                # Info kuota ikut kategori
                 if v_type == CAT_FB:
                     a = df[(df[COL_TYPE] == CAT_FB) & (df[COL_CAT] == v_cat) & (df["Status"] == "Approved")].shape[0]
                     p = df[(df[COL_TYPE] == CAT_FB) & (df[COL_CAT] == v_cat) & (df["Status"] == "Pending")].shape[0]
@@ -843,230 +857,137 @@ if show_section("4️⃣ Rekod Bayaran"):
 
 
 # ============================================================
-# SECTION 5 — WHATSAPP
+# SECTION 6 — SEMUA VENDOR (PAPAR TERUS, TAKDE EXPANDER)
 # ============================================================
-if show_section("5️⃣ WhatsApp"):
-    st.markdown("## 5️⃣ WhatsApp")
-    st.caption("Buka group WhatsApp atau ambil senarai nombor untuk follow-up.")
+if show_all:
+    st.markdown("## 5️⃣ Semua Vendor")
 
     try:
-        wa_group = st.secrets["event"]["whatsapp_group"]
+        form_url = st.secrets["event"].get("google_form_responses_url", "")
     except Exception:
-        wa_group = ""
+        form_url = ""
 
-    # Kad link WhatsApp Group
-    if wa_group:
-        st.markdown(f"""
-        <div style="
-            background-color: #f2ebe0;
-            border: 1px solid #e8dcc7;
-            border-radius: 12px;
-            padding: 1.25rem 1.5rem;
-            margin-bottom: 1.5rem;
-            display: flex;
-            justify-content: space-between;
-            align-items: center;
-            gap: 1rem;
-        ">
-            <div>
-                <div style="font-weight: 600; color: #292524; font-size: 1rem;">💬 WhatsApp Group Vendor</div>
-                <div style="color: #78716c; font-size: 0.85rem; margin-top: 0.25rem;">Hantar mesej terus dalam group</div>
-            </div>
-            <a href="{wa_group}" target="_blank" style="
+    try:
+        sheet_url = st.secrets["connections"]["gsheets"]["spreadsheet"]
+    except Exception:
+        sheet_url = ""
+
+    quick_col1, quick_col2 = st.columns(2)
+    with quick_col1:
+        if form_url:
+            st.markdown(f"""
+            <a href="{form_url}" target="_blank" style="
+                display: flex;
+                align-items: center;
+                justify-content: center;
+                gap: 0.5rem;
                 background-color: #78350f;
                 color: #ffffff;
-                padding: 0.6rem 1.25rem;
-                border-radius: 8px;
+                padding: 0.7rem 1rem;
+                border-radius: 10px;
                 text-decoration: none;
                 font-weight: 600;
                 font-size: 0.9rem;
-                white-space: nowrap;
-            ">Buka Group →</a>
-        </div>
-        """, unsafe_allow_html=True)
+            ">📋 Buka Google Form Responses</a>
+            """, unsafe_allow_html=True)
 
-    # Expander senarai nombor
-    with st.expander("📞 Senarai Nombor untuk Follow-up Manual"):
-        st.caption("Copy senarai ni → paste dalam WhatsApp Broadcast List.")
+    with quick_col2:
+        if sheet_url:
+            st.markdown(f"""
+            <a href="{sheet_url}" target="_blank" style="
+                display: flex;
+                align-items: center;
+                justify-content: center;
+                gap: 0.5rem;
+                background-color: #ffffff;
+                color: #78350f;
+                padding: 0.7rem 1rem;
+                border-radius: 10px;
+                text-decoration: none;
+                font-weight: 600;
+                font-size: 0.9rem;
+                border: 1px solid #d6c4a3;
+            ">📊 Buka Google Sheet</a>
+            """, unsafe_allow_html=True)
 
-        wa1, wa2 = st.columns(2)
-        with wa1:
-            blast_group = st.selectbox(
-                "Kategori",
-                options=["Car Boot sahaja", "F&B sahaja", "Others sahaja", "Belum bayar", "Sudah bayar"],
-                key="blast_group"
-            )
-        with wa2:
-            blast_type = st.selectbox(
-                "Jenis mesej",
-                options=["Reminder Bayaran", "Info Event", "Custom"],
-                key="blast_type"
-            )
+    st.markdown("<div style='height: 1rem;'></div>", unsafe_allow_html=True)
+    st.divider()
 
-        if blast_type == "Custom":
-            blast_msg = st.text_area("Mesej custom", height=100)
-        elif blast_type == "Reminder Bayaran":
-            blast_msg = (
-                f"Hi! Ini peringatan mesra — sila buat bayaran sebelum "
-                f"{cutoff_date.strftime('%d %b %Y')} untuk kekalkan slot anda. Terima kasih!"
-            )
-            st.code(blast_msg, language=None)
-        else:
-            blast_msg = (
-                f"Hi! Ini info terkini untuk PFM Mega Car Boot Sale pada "
-                f"{EVENT_DATE.strftime('%d %b %Y')}. Jumpa di sana!"
-            )
-            st.code(blast_msg, language=None)
+    st.markdown("**Tapis mengikut status**")
+    status_options = df["Status"].dropna().unique().tolist()
+    status_filter = st.multiselect(
+        "Tapis mengikut status",
+        options=status_options,
+        default=status_options,
+        label_visibility="collapsed"
+    )
+    filtered_all = df[df["Status"].isin(status_filter)]
 
-        if blast_group == "Car Boot sahaja":
-            targets = df[df[COL_TYPE] == CAT_CARBOOT]
-        elif blast_group == "F&B sahaja":
-            targets = df[df[COL_TYPE] == CAT_FB]
-        elif blast_group == "Others sahaja":
-            targets = df[~df[COL_TYPE].isin([CAT_CARBOOT, CAT_FB])]
-        elif blast_group == "Belum bayar":
-            targets = df[(df["Status"] == "Approved") & (~df["Paid"])]
-        else:
-            targets = df[(df["Status"] == "Approved") & (df["Paid"])]
+    display_df = filtered_all.copy()
+    display_df[COL_PHONE] = display_df[COL_PHONE].apply(format_phone_display)
+    st.dataframe(display_df, hide_index=True, use_container_width=True)
 
-        st.info(f"**{len(targets)}** vendor dalam kumpulan ini.")
+    st.markdown("<div style='height: 1rem;'></div>", unsafe_allow_html=True)
 
-        if st.button("Senarai Nombor Vendor", type="primary"):
-            clean_phones = [normalize_phone(p) for p in targets[COL_PHONE].tolist()]
-            clean_phones = [p for p in clean_phones if p]
+    act_col1, act_col2 = st.columns([3, 1])
 
-            st.success(f"**{len(clean_phones)}** nombor sedia.")
-            st.markdown("**Copy senarai ni → paste dalam WhatsApp Broadcast List:**")
-            st.code("\n".join(clean_phones), language=None)
-            st.caption("📌 WhatsApp → Settings → Broadcast Lists → New List → Paste nombor → Taip mesej → Hantar")
+    with act_col1:
+        plate_to_delete = st.selectbox(
+            "Pilih No. Plate untuk dipadam",
+            options=[""] + filtered_all[COL_PLATE].tolist(),
+            key="delete_plate_select"
+        )
+
+    with act_col2:
+        st.markdown("<div style='height: 1.75rem;'></div>", unsafe_allow_html=True)
+        if st.button("🗑️ Padam", type="primary", use_container_width=True):
+            if plate_to_delete:
+                row = df[df[COL_PLATE] == plate_to_delete]
+                name = row.iloc[0][COL_NAME] if not row.empty else "-"
+                confirm_delete_dialog(plate_to_delete, name)
+            else:
+                st.error("Sila pilih No. Plate.")
+
+    st.markdown("<div style='height: 0.5rem;'></div>", unsafe_allow_html=True)
+
+    csv_all = convert_df_to_csv(filtered_all)
+    st.download_button(
+        "📥 Muat Turun CSV (Semua Vendor)",
+        data=csv_all,
+        file_name=f"vendors_{datetime.now().strftime('%Y%m%d_%H%M')}.csv",
+        mime="text/csv",
+    )
 
     st.divider()
 
+    # ============================================================
+    # LOG TINDAKAN ADMIN — PAPAR TERUS
+    # ============================================================
+    st.markdown("## 6️⃣ Log Tindakan Admin")
 
-# ============================================================
-# SECTION 6 — SEMUA VENDOR + DOWNLOAD + ACTION LOG
-# ============================================================
-if show_all:
-    with st.expander("6️⃣ 📋 Vendor"):
-        try:
-            form_url = st.secrets["event"].get("google_form_responses_url", "")
-        except Exception:
-            form_url = ""
+    logs = load_sheet_safe(conn, "Log", ttl=60)
+    if logs is None or logs.empty:
+        st.markdown("""
+        <div style="
+            background-color: #f0f9ff;
+            border: 1px solid #bae6fd;
+            border-radius: 10px;
+            padding: 1rem 1.25rem;
+            color: #0c4a6e;
+            font-size: 0.92rem;
+        ">
+            📭 Belum ada rekod tindakan admin.
+        </div>
+        """, unsafe_allow_html=True)
+    else:
+        logs_sorted = logs.sort_values("Timestamp", ascending=False)
+        st.dataframe(logs_sorted, hide_index=True, use_container_width=True)
 
-        try:
-            sheet_url = st.secrets["connections"]["gsheets"]["spreadsheet"]
-        except Exception:
-            sheet_url = ""
-
-        quick_col1, quick_col2 = st.columns(2)
-        with quick_col1:
-            if form_url:
-                st.markdown(f"""
-                <a href="{form_url}" target="_blank" style="
-                    display: flex;
-                    align-items: center;
-                    justify-content: center;
-                    gap: 0.5rem;
-                    background-color: #78350f;
-                    color: #ffffff;
-                    padding: 0.7rem 1rem;
-                    border-radius: 10px;
-                    text-decoration: none;
-                    font-weight: 600;
-                    font-size: 0.9rem;
-                ">📋 Buka Google Form Responses</a>
-                """, unsafe_allow_html=True)
-
-        with quick_col2:
-            if sheet_url:
-                st.markdown(f"""
-                <a href="{sheet_url}" target="_blank" style="
-                    display: flex;
-                    align-items: center;
-                    justify-content: center;
-                    gap: 0.5rem;
-                    background-color: #ffffff;
-                    color: #78350f;
-                    padding: 0.7rem 1rem;
-                    border-radius: 10px;
-                    text-decoration: none;
-                    font-weight: 600;
-                    font-size: 0.9rem;
-                    border: 1px solid #d6c4a3;
-                ">📊 Buka Google Sheet</a>
-                """, unsafe_allow_html=True)
-
-        st.markdown("<div style='height: 1rem;'></div>", unsafe_allow_html=True)
-        st.divider()
-
-        st.markdown("**Tapis mengikut status**")
-        status_options = df["Status"].dropna().unique().tolist()
-        status_filter = st.multiselect(
-            "Tapis mengikut status",
-            options=status_options,
-            default=status_options,
-            label_visibility="collapsed"
-        )
-        filtered_all = df[df["Status"].isin(status_filter)]
-
-        display_df = filtered_all.copy()
-        display_df[COL_PHONE] = display_df[COL_PHONE].apply(format_phone_display)
-        st.dataframe(display_df, hide_index=True, use_container_width=True)
-
-        st.markdown("<div style='height: 1rem;'></div>", unsafe_allow_html=True)
-
-        act_col1, act_col2 = st.columns([3, 1])
-
-        with act_col1:
-            plate_to_delete = st.selectbox(
-                "Pilih No. Plate untuk dipadam",
-                options=[""] + filtered_all[COL_PLATE].tolist(),
-                key="delete_plate_select"
-            )
-
-        with act_col2:
-            st.markdown("<div style='height: 1.75rem;'></div>", unsafe_allow_html=True)
-            if st.button("🗑️ Padam", type="primary", use_container_width=True):
-                if plate_to_delete:
-                    row = df[df[COL_PLATE] == plate_to_delete]
-                    name = row.iloc[0][COL_NAME] if not row.empty else "-"
-                    confirm_delete_dialog(plate_to_delete, name)
-                else:
-                    st.error("Sila pilih No. Plate.")
-
-        st.markdown("<div style='height: 0.5rem;'></div>", unsafe_allow_html=True)
-
-        csv_all = convert_df_to_csv(filtered_all)
+        csv_logs = convert_df_to_csv(logs_sorted)
         st.download_button(
-            "📥 Muat Turun CSV (Semua Vendor)",
-            data=csv_all,
-            file_name=f"vendors_{datetime.now().strftime('%Y%m%d_%H%M')}.csv",
+            "📥 Muat Turun Log CSV",
+            data=csv_logs,
+            file_name=f"log_{datetime.now().strftime('%Y%m%d_%H%M')}.csv",
             mime="text/csv",
         )
-
-    with st.expander("7️⃣ 📜 Log Tindakan Admin"):
-        logs = load_sheet_safe(conn, "Log", ttl=60)
-        if logs is None or logs.empty:
-            st.markdown("""
-            <div style="
-                background-color: #f0f9ff;
-                border: 1px solid #bae6fd;
-                border-radius: 10px;
-                padding: 1rem 1.25rem;
-                color: #0c4a6e;
-                font-size: 0.92rem;
-            ">
-                📭 Belum ada rekod tindakan admin.
-            </div>
-            """, unsafe_allow_html=True)
-        else:
-            logs_sorted = logs.sort_values("Timestamp", ascending=False)
-            st.dataframe(logs_sorted, hide_index=True, use_container_width=True)
-
-            csv_logs = convert_df_to_csv(logs_sorted)
-            st.download_button(
-                "📥 Muat Turun Log CSV",
-                data=csv_logs,
-                file_name=f"log_{datetime.now().strftime('%Y%m%d_%H%M')}.csv",
-                mime="text/csv",
-            )
+        
