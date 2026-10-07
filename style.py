@@ -22,44 +22,25 @@ def apply_style():
     }
 
     /* ========================================================= */
-    /* === SIDEBAR — FORCE ALWAYS OPEN (mobile + desktop) === */
+    /* === SIDEBAR — DEFAULT OPEN, BOLEH TOGGLE === */
     /* ========================================================= */
     [data-testid="stSidebar"] {
         background-color: #f2ebe0;
         border-right: 1px solid #e8dcc7;
         min-width: 260px !important;
         width: 260px !important;
-        transform: none !important;
-        transition: none !important;
-        margin-left: 0 !important;
-    }
-    [data-testid="stSidebar"][aria-expanded="false"] {
-        margin-left: 0 !important;
-        transform: none !important;
-        width: 260px !important;
-        min-width: 260px !important;
-        display: block !important;
-        visibility: visible !important;
-    }
-    [data-testid="stSidebar"][aria-expanded="true"] {
-        margin-left: 0 !important;
-        transform: none !important;
-        width: 260px !important;
-        min-width: 260px !important;
     }
 
-    /* Hide collapse button + collapsed control (mobile + desktop) */
-    [data-testid="stSidebarCollapsedControl"] {
-        display: none !important;
-    }
+    /* Pastikan arrow toggle sentiasa kelihatan */
     [data-testid="stSidebarCollapseButton"] {
-        display: none !important;
+        display: flex !important;
+        visibility: visible !important;
+        opacity: 1 !important;
     }
-    [data-testid="collapsedControl"] {
-        display: none !important;
-    }
-    button[kind="header"] {
-        display: none !important;
+    [data-testid="stSidebarCollapsedControl"] {
+        display: flex !important;
+        visibility: visible !important;
+        opacity: 1 !important;
     }
 
     [data-testid="stSidebar"] h3,
