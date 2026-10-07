@@ -170,7 +170,6 @@ def get_vendor_proof(plate):
 # FUNGSI BANTUAN — kiraan kuota
 # ============================================================
 def count_approved(**filters):
-    """Kira status Approved sahaja."""
     mask = pd.Series(True, index=df.index)
     for col, val in filters.items():
         mask &= (df[col] == val)
@@ -179,7 +178,6 @@ def count_approved(**filters):
 
 
 def count_pending(**filters):
-    """Kira status Pending sahaja."""
     mask = pd.Series(True, index=df.index)
     for col, val in filters.items():
         mask &= (df[col] == val)
@@ -188,7 +186,6 @@ def count_pending(**filters):
 
 
 def committed(**filters):
-    """Kira Approved + Pending (untuk kelulusan limit)."""
     mask = pd.Series(True, index=df.index)
     for col, val in filters.items():
         mask &= (df[col] == val)
@@ -232,7 +229,7 @@ with st.sidebar:
         "Pergi ke:",
         options=[
             "🏠 Semua Section",
-            "1️⃣ Papan Pemantauan Kuota",
+            "1️⃣ Dashboard",
             "2️⃣ Tarikh Akhir Bayaran",
             "3️⃣ Pendaftaran Baru",
             "4️⃣ Rekod Bayaran",
@@ -433,17 +430,15 @@ if wa_group:
 
 
 # ============================================================
-# SECTION 1 — PAPAN PEMANTAUAN KUOTA (APPROVED + PENDING DELTA)
+# SECTION 1 — DASHBOARD (APPROVED + PENDING DELTA)
 # ============================================================
-if show_section("1️⃣ Papan Pemantauan Kuota"):
-    st.markdown("## 1️⃣ Papan Pemantauan Kuota")
+if show_section("1️⃣ Dashboard"):
+    st.markdown("## 1️⃣ Dashboard")
 
-    # Approved
     cb_approved = count_approved(**{COL_TYPE: CAT_CARBOOT})
     fb_approved = count_approved(**{COL_TYPE: CAT_FB})
     ot_approved = others_approved()
 
-    # Pending
     cb_pending = count_pending(**{COL_TYPE: CAT_CARBOOT})
     fb_pending = count_pending(**{COL_TYPE: CAT_FB})
     ot_pending = others_pending()
@@ -452,7 +447,6 @@ if show_section("1️⃣ Papan Pemantauan Kuota"):
     total_pending = cb_pending + fb_pending + ot_pending
     total_limit = CAR_BOOT_LIMIT + FB_OVERALL_LIMIT + OTHERS_LIMIT
 
-    # METRIC — Approved sebagai value, Pending sebagai delta
     c1, c2, c3, c4 = st.columns(4)
     c1.metric(
         "Car Boot",
@@ -479,7 +473,6 @@ if show_section("1️⃣ Papan Pemantauan Kuota"):
         delta_color="off",
     )
 
-    # Progress bar (guna committed = approved + pending untuk kuota sebenar)
     cb_committed = cb_approved + cb_pending
     fb_committed = fb_approved + fb_pending
     ot_committed = ot_approved + ot_pending
@@ -612,7 +605,7 @@ if show_section("3️⃣ Permohonan Menunggu"):
 
 
 # ============================================================
-# SECTION 3 — PERMOHONAN MENUNGGU (DROPDOWN FILTER)
+# SECTION 3 — PERMOHONAN MENUNGGU
 # ============================================================
 if show_section("3️⃣ Permohonan Menunggu"):
     st.markdown("## 3️⃣ Permohonan Menunggu")
@@ -916,7 +909,7 @@ if show_section("4️⃣ Rekod Bayaran"):
 
 
 # ============================================================
-# SECTION 5 — SEMUA VENDOR + LOG (PAPAR TERUS)
+# SECTION 5 — SEMUA VENDOR (TANPA LOG)
 # ============================================================
 if show_all:
     st.markdown("## 5️⃣ Semua Vendor")
@@ -1016,33 +1009,3 @@ if show_all:
         file_name=f"vendors_{datetime.now().strftime('%Y%m%d_%H%M')}.csv",
         mime="text/csv",
     )
-
-    st.divider()
-
-    st.markdown("## 6️⃣ Log Tindakan Admin")
-
-    logs = load_sheet_safe(conn, "Log", ttl=60)
-    if logs is None or logs.empty:
-        st.markdown("""
-        <div style="
-            background-color: #f0f9ff;
-            border: 1px solid #bae6fd;
-            border-radius: 10px;
-            padding: 1rem 1.25rem;
-            color: #0c4a6e;
-            font-size: 0.92rem;
-        ">
-            📭 Belum ada rekod tindakan admin.
-        </div>
-        """, unsafe_allow_html=True)
-    else:
-        logs_sorted = logs.sort_values("Timestamp", ascending=False)
-        st.dataframe(logs_sorted, hide_index=True, use_container_width=True)
-
-        csv_logs = convert_df_to_csv(logs_sorted)
-        st.download_button(
-            "📥 Muat Turun Log CSV",
-            data=csv_logs,
-            file_name=f"log_{datetime.now().strftime('%Y%m%d_%H%M')}.csv",
-            mime="text/csv",
-        )
