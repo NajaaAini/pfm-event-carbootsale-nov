@@ -99,6 +99,7 @@ with st.sidebar:
             else:
                 st.error("❌ Kata laluan salah")
     else:
+        st.success(f"Admin: {st.session_state.get('admin_name', 'Admin')}")
         if st.button("Log Keluar"):
             st.session_state.is_admin = False
             st.session_state.admin_name = "Admin"
