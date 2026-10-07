@@ -298,20 +298,11 @@ if submitted and query:
                 # === KAD MAKLUMAT PEMBAYARAN ===
                 with st.container(border=True):
                     st.caption("💳 MAKLUMAT PEMBAYARAN")
-
-                    col1, col2 = st.columns([1, 2])
-                    with col1:
-                        st.markdown(" **Bank**")
-                        st.markdown(" **Nama Akaun**")
-                        st.markdown(" **No. Akaun**")
-                        st.markdown(" **Remark**")
-                        st.markdown(" **Contoh**")
-                    with col2:
-                        st.markdown("MAYBANK")
-                        st.markdown("PRINTHERO MERCHANDISE SDN. BHD.")
-                        st.markdown("**557054621057**")
-                        st.markdown("PFMCBS (4 digit terakhir No. Telefon)")
-                        st.markdown("PFMCBS1234")
+                    st.markdown("**🏦 Bank:** MAYBANK")
+                    st.markdown("**👤 Nama Akaun:** PRINTHERO MERCHANDISE SDN. BHD.")
+                    st.markdown("**🔢 No. Akaun:** 557054621057")
+                    st.markdown("**📝 Remark:** PFMCBS (4 digit terakhir No. Telefon)")
+                    st.markdown("**📋 Contoh:** PFMCBS1234")
 
                 # === NOTA PENTING ===
                 st.warning("⚠️ **Penting:** Kalau bayaran tidak diterima **2 hari sebelum event**, slot anda akan dibatalkan automatik.")
