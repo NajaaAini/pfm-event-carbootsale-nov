@@ -1,0 +1,213 @@
+import streamlit as st
+import pandas as pd
+from datetime import datetime
+from streamlit_gsheets import GSheetsConnection
+from style import apply_style
+from components import page_header, load_sheet_safe, upload_payment_proof
+
+st.set_page_config(page_title="Upload Bukti Bayaran", layout="wide")
+apply_style()
+page_header()
+
+st.title("📤 Upload Bukti Bayaran")
+st.caption("Bukti bayaran akan disimpan automatik ke Google Drive mengikut kategori anda.")
+
+# ============================================================
+# KONFIGURASI
+# ============================================================
+COL_NAME = "Nama/Name"
+COL_PHONE = "Nombor Telefon/Phone Number"
+COL_TYPE = "Kategori Produk/Product Category"
+COL_CAT = "F&B CATEGORY"
+COL_PLATE = "Plate Number"
+
+# Nama column bukti bayaran dalam Sheet
+PROOF_COL = "Upload Bukti Bayaran"
+
+FB_CATEGORIES = [
+    "Local Food", "Dessert", "Coffee/Air", "Grill and BBQ",
+    "Deep-Fry", "Italian/Western Food", "Japanese Food", "Chinese Food",
+]
+
+# ============================================================
+# LOAD VENDORS
+# ============================================================
+conn = st.connection("gsheets", type=GSheetsConnection)
+df = load_sheet_safe(conn, "Vendors", ttl=0)
+if df is None:
+    st.stop()
+
+if "Paid" not in df.columns:
+    df["Paid"] = False
+df["Paid"] = df["Paid"].fillna(False).astype(bool)
+
+
+# ============================================================
+# FORM
+# ============================================================
+with st.form("payment_upload", clear_on_submit=False):
+    plate_input = st.text_input(
+        "No. Pendaftaran Kenderaan / Plate Number",
+        placeholder="Contoh: NNA1806",
+        help="Masukkan no. plate yang sama seperti semasa pendaftaran.",
+    ).strip().upper()
+
+    uploaded = st.file_uploader(
+        "Pilih gambar bukti bayaran",
+        type=["jpg", "jpeg", "png", "pdf"],
+        help="Format dibenarkan: JPG, PNG, PDF. Saiz maksimum 10MB.",
+    )
+
+    st.markdown("---")
+    submitted = st.form_submit_button(
+        "Hantar Bukti Bayaran", type="primary", use_container_width=True
+    )
+
+
+# ============================================================
+# PROSES
+# ============================================================
+if submitted:
+    # ---- Validasi input asas ----
+    if not plate_input:
+        st.error("❌ Sila masukkan No. Plate.")
+        st.stop()
+
+    if not uploaded:
+        st.error("❌ Sila pilih fail bukti bayaran.")
+        st.stop()
+
+    # ---- Semak saiz fail (max 10MB) ----
+    MAX_SIZE_MB = 10
+    file_size_mb = uploaded.size / (1024 * 1024)
+    if file_size_mb > MAX_SIZE_MB:
+        st.error(f"❌ Saiz fail terlalu besar ({file_size_mb:.1f} MB). Maksimum {MAX_SIZE_MB} MB.")
+        st.stop()
+
+    # ---- Cari vendor ----
+    normalized_input = plate_input.replace(" ", "").upper()
+    matched = df[
+        df[COL_PLATE].astype(str).str.upper().str.replace(" ", "")
+        == normalized_input
+    ]
+
+    if matched.empty:
+        st.error(f"❌ No. Plate **{plate_input}** tidak dijumpai dalam sistem.")
+        st.info("Sila pastikan No. Plate betul, atau daftar terlebih dahulu.")
+        st.stop()
+
+    vendor = matched.iloc[0]
+    vendor_name = str(vendor.get(COL_NAME, ""))
+    status = str(vendor.get("Status", "")).strip().title()
+    vendor_type = str(vendor.get(COL_TYPE, "Car Boot Sales")).strip()
+    fb_category = str(vendor.get(COL_CAT, "") or "").strip()
+
+    # ---- Semak status ----
+    if status == "Pending":
+        st.warning(
+            f"⚠️ Permohonan anda masih **Menunggu Semakan**. "
+            "Bukti bayaran hanya boleh dihantar selepas permohonan diluluskan."
+        )
+        st.stop()
+
+    if status == "Rejected":
+        st.error(
+            "❌ Permohonan anda **Tidak Berjaya**. "
+            "Sila hubungi admin untuk maklumat lanjut."
+        )
+        st.stop()
+
+    if status == "Cancelled":
+        st.error(
+            "🚫 Slot anda telah **Dibatalkan** kerana bayaran tidak diterima "
+            "sebelum tarikh akhir. Hubungi admin jika ini satu kesilapan."
+        )
+        st.stop()
+
+    if status != "Approved":
+        st.error(f"⚠️ Status tidak dikenali: **{status}**. Sila hubungi admin.")
+        st.stop()
+
+    st.success(f"✅ Vendor dijumpai: **{vendor_name}** ({vendor_type})")
+
+    # ---- Semak jika sudah upload sebelum ini ----
+    existing_payments = load_sheet_safe(conn, "Payments", ttl=0)
+    if existing_payments is None or existing_payments.empty:
+        existing_payments = pd.DataFrame(
+            columns=["Timestamp", "Plate Number", PROOF_COL, "FolderUrl"]
+        )
+
+    # Pastikan column wujud
+    for col in ["Timestamp", "Plate Number", PROOF_COL, "FolderUrl"]:
+        if col not in existing_payments.columns:
+            existing_payments[col] = ""
+
+    # Cari rekod lama untuk plate ni
+    already_uploaded = existing_payments[
+        existing_payments["Plate Number"].astype(str).str.upper().str.replace(" ", "")
+        == normalized_input
+    ]
+
+    if not already_uploaded.empty:
+        st.warning(
+            f"⚠️ Anda sudah pernah upload bukti bayaran sebelum ini "
+            f"({len(already_uploaded)} rekod). Upload baru akan **tambah** rekod lama."
+        )
+
+    # ---- Upload ke Google Drive ----
+    with st.spinner("Menghantar ke Google Drive..."):
+        try:
+            parent_folder_id = st.secrets["event"]["payment_proof_folder_id"]
+        except (KeyError, Exception):
+            st.error("❌ Konfigurasi folder Drive tidak dijumpai. Sila hubungi admin.")
+            st.stop()
+
+        file_id, view_url, folder_url = upload_payment_proof(
+            file_bytes=uploaded.getvalue(),
+            plate=plate_input,
+            vendor_type=vendor_type,
+            fb_category=fb_category,
+            parent_folder_id=parent_folder_id,
+            mime_type=uploaded.type or "image/jpeg",
+        )
+
+    if not view_url:
+        st.error("❌ Gagal upload ke Google Drive. Sila cuba lagi atau hubungi admin.")
+        st.stop()
+
+    # ---- Simpan rekod ke sheet Payments ----
+    new_row = pd.DataFrame([{
+        "Timestamp": datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
+        "Plate Number": plate_input,
+        PROOF_COL: view_url,          # ← guna nama column Sheet
+        "FolderUrl": folder_url,
+    }])
+    updated_payments = pd.concat([existing_payments, new_row], ignore_index=True)
+
+    try:
+        conn.update(worksheet="Payments", data=updated_payments)
+        st.success("💾 Rekod pembayaran disimpan dalam sistem.")
+    except Exception as e:
+        st.warning(
+            "⚠️ Fail berjaya diupload ke Drive, tapi rekod tidak dapat disimpan "
+            f"dalam sistem. Sila maklumkan admin. (Error: {e})"
+        )
+
+    # ---- Paparkan hasil ----
+    st.markdown("---")
+    st.markdown("### ✅ Bukti Bayaran Berjaya Dihantar")
+    st.markdown(f"**Vendor:** {vendor_name}  \n**No. Plate:** `{plate_input}`")
+    st.markdown(f"**Fail:** [Lihat Bukti]({view_url})")
+    if folder_url:
+        st.markdown(f"**Folder vendor:** [Buka Folder]({folder_url})")
+
+    st.info(
+        "📌 **Seterusnya:** Admin akan semak bukti bayaran anda dan tanda "
+        "'Sudah Bayar' dalam sistem. Sila sertai WhatsApp Group untuk update terkini."
+    )
+
+    if uploaded.type and uploaded.type.startswith("image/"):
+        with st.expander("Lihat gambar yang diupload"):
+            st.image(uploaded, use_container_width=True)
+
+    st.balloons()
