@@ -11,6 +11,7 @@ st.set_page_config(
 
 apply_style()
 
+
 # ============================================================
 # SIDEBAR — BRANDED HEADER + LOGIN
 # ============================================================
@@ -20,34 +21,6 @@ def _image_base64(image_path):
         return None
     with open(path, "rb") as f:
         return base64.b64encode(f.read()).decode()
-
-
-# ============================================================
-# DIALOG — TANYA NAMA ADMIN SELEPAS LOG MASUK
-# ============================================================
-@st.dialog("Selamat Datang")
-def ask_admin_name_dialog():
-    st.write("Sila masukkan nama anda untuk log tindakan admin.")
-
-    name = st.text_input(
-        "Nama Admin",
-        placeholder="Contoh: Ali",
-        key="dialog_admin_name"
-    )
-
-    col1, col2 = st.columns(2)
-    with col1:
-        if st.button("Teruskan", type="primary", use_container_width=True):
-            if name.strip():
-                st.session_state.admin_name = name.strip()
-                st.session_state.is_admin = True
-                st.rerun()
-            else:
-                st.error("Sila masukkan nama.")
-    with col2:
-        if st.button("Batal", use_container_width=True):
-            st.session_state.pending_login = False
-            st.rerun()
 
 
 with st.sidebar:
@@ -120,7 +93,8 @@ with st.sidebar:
         )
         if st.button("Log Masuk", type="primary"):
             if pwd == st.secrets["admin"]["password"]:
-                st.session_state.pending_login = True
+                st.session_state.is_admin = True
+                st.session_state.admin_name = "Admin"
                 st.rerun()
             else:
                 st.error("❌ Kata laluan salah")
@@ -129,14 +103,8 @@ with st.sidebar:
         if st.button("Log Keluar"):
             st.session_state.is_admin = False
             st.session_state.admin_name = "Admin"
-            st.session_state.pending_login = False
             st.rerun()
 
-# ============================================================
-# SHOW DIALOG — kalau password betul, tanya nama
-# ============================================================
-if st.session_state.get("pending_login", False) and not st.session_state.get("is_admin", False):
-    ask_admin_name_dialog()
 
 # ============================================================
 # PAGES
