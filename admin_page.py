@@ -563,7 +563,7 @@ if show_section("3️⃣ Permohonan Menunggu"):
         with f_col1:
             type_options = ["Semua"] + sorted(pending_df[COL_TYPE].dropna().unique().tolist())
             type_filter = st.selectbox(
-                "Tapis Kategori Produk",
+                "Kategori Produk",
                 options=type_options,
                 key="pending_type_filter"
             )
@@ -913,7 +913,7 @@ if show_all:
     st.markdown("<div style='height: 1rem;'></div>", unsafe_allow_html=True)
     st.divider()
 
-    st.markdown("**Tapis mengikut status**")
+    st.markdown("**Status**")
     status_options = df["Status"].dropna().unique().tolist()
     status_filter = st.multiselect(
         "Tapis mengikut status",
