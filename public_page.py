@@ -113,13 +113,17 @@ def get_vendor_payment_info(payments_df, plate_norm):
 
     latest = matched.iloc[0]
 
+    def _clean(v):
+        s = str(v or "").strip()
+        return "" if s.lower() in ("nan", "none", "nat", "null") else s
+
     return {
-        "proof_url": str(latest.get(PROOF_COL, "") or ""),
-        "folder_url": str(latest.get("FolderUrl", "") or ""),
-        "timestamp": str(latest.get("Timestamp", "") or ""),
-        "pilih_jenis": str(latest.get("Pilih Jenis", "") or "").strip(),
-        "parking_lot": str(latest.get("Pilih parking lot", "") or "").strip(),
-        "fnb_lot": str(latest.get("Pilih F&B Lot", "") or "").strip(),
+        "proof_url": _clean(latest.get(PROOF_COL, "")),
+        "folder_url": _clean(latest.get("FolderUrl", "")),
+        "timestamp": _clean(latest.get("Timestamp", "")),
+        "pilih_jenis": _clean(latest.get("Pilih Jenis", "")),
+        "parking_lot": _clean(latest.get("Pilih parking lot", "")),
+        "fnb_lot": _clean(latest.get("Pilih F&B Lot", "")),
     }
 
 
@@ -228,9 +232,6 @@ if submitted and query:
 
         has_uploaded_proof = bool(payment_info.get("proof_url"))
         proof_upload_time = payment_info.get("timestamp", "")
-        proof_url = payment_info.get("proof_url", "")
-        folder_url = payment_info.get("folder_url", "")
-        pilih_jenis = payment_info.get("pilih_jenis", "")
         parking_lot = payment_info.get("parking_lot", "")
         fnb_lot = payment_info.get("fnb_lot", "")
 
@@ -282,13 +283,6 @@ if submitted and query:
                         st.markdown("Terima kasih! Bukti bayaran anda telah diterima. Admin akan semak dan sahkan slot anda tidak lama lagi.")
 
                 st.info("📌 **Seterusnya:** Sila tunggu pengesahan admin dan jangan lupa untuk join group whatsapp.")
-
-                if proof_url or folder_url:
-                    with st.expander("📎 Lihat bukti yang dihantar"):
-                        if proof_url:
-                            st.markdown(f"[📄 Fail Bukti Bayaran]({proof_url})")
-                        if folder_url:
-                            st.markdown(f"[📁 Folder Bukti]({folder_url})")
 
             # ==========================================
             # CASE 2: Approved + BELUM Paid + BELUM UPLOAD
@@ -347,11 +341,11 @@ if submitted and query:
                     st.markdown("Tahniah! Anda telah berjaya mendaftar dan membuat pembayaran. Berikut adalah maklumat slot anda:")
 
                 # === KAD DETAIL SLOT (PILIHAN LOT) ===
-                if pilih_jenis or parking_lot or fnb_lot:
+                if parking_lot or fnb_lot:
                     with st.container(border=True):
                         st.caption("📍 MAKLUMAT SLOT ANDA")
-                        if pilih_jenis:
-                            st.markdown(f"<b>Jenis:</b> {pilih_jenis}", unsafe_allow_html=True)
+                        if parking_lot:
+                            st.markdown(f"<b>Parking Lot:</b> {parking_lot}", unsafe_allow_html=True)
                         if fnb_lot:
                             st.markdown(f"<b>F&B Lot:</b> {fnb_lot}", unsafe_allow_html=True)
 
