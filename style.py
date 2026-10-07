@@ -5,14 +5,26 @@ def apply_style():
     st.markdown("""
     <style>
     /* ========================================================= */
-    /* === HIDE STREAMLIT DEFAULT === */
+    /* === HIDE STREAMLIT DEFAULT (kecuali toggle button) === */
     /* ========================================================= */
     #MainMenu {visibility: hidden;}
     footer {visibility: hidden;}
-    header {visibility: hidden;}
     .stDeployButton {display: none;}
     [data-testid="stToolbar"] {visibility: hidden;}
     [data-testid="stDecoration"] {display: none;}
+
+    /* Header jangan hide sepenuhnya — Streamlit letak toggle button kat sini */
+    header[data-testid="stHeader"] {
+        background: transparent !important;
+        height: auto !important;
+    }
+    header[data-testid="stHeader"] button,
+    header[data-testid="stHeader"] [data-testid="stSidebarCollapsedControl"],
+    header[data-testid="stHeader"] [data-testid="stSidebarCollapseButton"] {
+        visibility: visible !important;
+        display: flex !important;
+        opacity: 1 !important;
+    }
 
     /* ========================================================= */
     /* === MAIN BACKGROUND === */
@@ -29,18 +41,6 @@ def apply_style():
         border-right: 1px solid #e8dcc7;
         min-width: 260px !important;
         width: 260px !important;
-    }
-
-    /* Pastikan arrow toggle sentiasa kelihatan */
-    [data-testid="stSidebarCollapseButton"] {
-        display: flex !important;
-        visibility: visible !important;
-        opacity: 1 !important;
-    }
-    [data-testid="stSidebarCollapsedControl"] {
-        display: flex !important;
-        visibility: visible !important;
-        opacity: 1 !important;
     }
 
     [data-testid="stSidebar"] h3,
@@ -149,6 +149,59 @@ def apply_style():
     }
 
     /* ========================================================= */
+    /* === FORCE SHOW "OPEN SIDEBAR" BUTTON (bila collapse) === */
+    /* ========================================================= */
+    [data-testid="stSidebarCollapsedControl"],
+    [data-testid="collapsedControl"],
+    [data-testid="stSidebarCollapsedControl"] > button,
+    [data-testid="collapsedControl"] > button {
+        display: flex !important;
+        visibility: visible !important;
+        opacity: 1 !important;
+        pointer-events: auto !important;
+        z-index: 999999 !important;
+        background-color: #78350f !important;
+        color: #ffffff !important;
+        border-radius: 50% !important;
+        width: 44px !important;
+        height: 44px !important;
+        min-width: 44px !important;
+        min-height: 44px !important;
+        align-items: center !important;
+        justify-content: center !important;
+        box-shadow: 0 4px 12px rgba(120, 53, 15, 0.4) !important;
+        position: fixed !important;
+        top: 1rem !important;
+        left: 1rem !important;
+    }
+
+    [data-testid="stSidebarCollapsedControl"] svg,
+    [data-testid="collapsedControl"] svg {
+        fill: #ffffff !important;
+        color: #ffffff !important;
+        width: 20px !important;
+        height: 20px !important;
+    }
+
+    [data-testid="stSidebarCollapsedControl"]:hover,
+    [data-testid="collapsedControl"]:hover {
+        background-color: #92400e !important;
+        transform: scale(1.05) !important;
+        box-shadow: 0 6px 16px rgba(120, 53, 15, 0.5) !important;
+    }
+
+    /* Extra selectors untuk Streamlit versi berbeza */
+    button[data-testid="baseButton-header"],
+    button[data-testid="baseButton-headerNoPadding"],
+    header button[kind="header"] {
+        display: flex !important;
+        visibility: visible !important;
+        opacity: 1 !important;
+        pointer-events: auto !important;
+        z-index: 999999 !important;
+    }
+
+    /* ========================================================= */
     /* === ADMIN NAVIGATION BUTTONS (di atas page) === */
     /* ========================================================= */
 
@@ -209,7 +262,7 @@ def apply_style():
     }
 
     /* ========================================================= */
-    /* === MAIN AREA — TEXT COLOR (FIX WHITE-ON-WHITE) === */
+    /* === MAIN AREA — TEXT COLOR === */
     /* ========================================================= */
     [data-testid="stAppViewContainer"],
     [data-testid="stMain"],
