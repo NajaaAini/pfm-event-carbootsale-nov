@@ -352,8 +352,6 @@ if submitted and query:
                         st.caption("📍 MAKLUMAT SLOT ANDA")
                         if pilih_jenis:
                             st.markdown(f"<b>Jenis:</b> {pilih_jenis}", unsafe_allow_html=True)
-                        if parking_lot:
-                            st.markdown(f"<b>Parking Lot:</b> {parking_lot}", unsafe_allow_html=True)
                         if fnb_lot:
                             st.markdown(f"<b>F&B Lot:</b> {fnb_lot}", unsafe_allow_html=True)
 
