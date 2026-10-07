@@ -301,11 +301,11 @@ if submitted and query:
 
                     col1, col2 = st.columns([1, 2])
                     with col1:
-                        st.markdown("🏦 **Bank**")
-                        st.markdown("👤 **Nama Akaun**")
-                        st.markdown("🔢 **No. Akaun**")
-                        st.markdown("📝 **Remark**")
-                        st.markdown("📋 **Contoh**")
+                        st.markdown(" **Bank**")
+                        st.markdown(" **Nama Akaun**")
+                        st.markdown(" **No. Akaun**")
+                        st.markdown(" **Remark**")
+                        st.markdown(" **Contoh**")
                     with col2:
                         st.markdown("MAYBANK")
                         st.markdown("PRINTHERO MERCHANDISE SDN. BHD.")
