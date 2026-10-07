@@ -88,6 +88,42 @@ def format_rm(amount):
 
 
 # ============================================================
+# HELPER — AMBIL INFO PAYMENT (lot, jenis, dll)
+# ============================================================
+def get_vendor_payment_info(payments_df, plate_norm):
+    """Ambil info terkini dari Sheet Payments."""
+    if payments_df is None or payments_df.empty:
+        return {}
+
+    if "Plate Number" not in payments_df.columns:
+        return {}
+
+    matched = payments_df[
+        payments_df["Plate Number"].astype(str).str.upper().str.replace(" ", "")
+        == plate_norm
+    ]
+
+    if matched.empty:
+        return {}
+
+    try:
+        matched = matched.sort_values("Timestamp", ascending=False)
+    except Exception:
+        pass
+
+    latest = matched.iloc[0]
+
+    return {
+        "proof_url": str(latest.get(PROOF_COL, "") or ""),
+        "folder_url": str(latest.get("FolderUrl", "") or ""),
+        "timestamp": str(latest.get("Timestamp", "") or ""),
+        "pilih_jenis": str(latest.get("Pilih Jenis", "") or "").strip(),
+        "parking_lot": str(latest.get("Pilih parking lot", "") or "").strip(),
+        "fnb_lot": str(latest.get("Pilih F&B Lot", "") or "").strip(),
+    }
+
+
+# ============================================================
 # TITLE
 # ============================================================
 st.title("🔍 Semak Kelayakan")
@@ -185,31 +221,18 @@ if submitted and query:
                 st.markdown(f"**F&B Category:** {row[COL_CAT]}")
 
         # ====================================================
-        # CHECK: BUKTI BAYARAN DAH UPLOAD?
+        # AMBIL INFO PAYMENT (dari Sheet Payments)
         # ====================================================
-        has_uploaded_proof = False
-        proof_upload_time = ""
-        proof_url = ""
-        folder_url = ""
+        payments_df, _ = load_payments()
+        payment_info = get_vendor_payment_info(payments_df, plate_norm)
 
-        if status == "Approved" and not paid:
-            payments, pay_err = load_payments()
-            if payments is not None and not payments.empty:
-                if "Plate Number" in payments.columns:
-                    matched_pay = payments[
-                        payments["Plate Number"].astype(str).str.upper().str.replace(" ", "")
-                        == plate_norm
-                    ]
-                    if not matched_pay.empty:
-                        has_uploaded_proof = True
-                        try:
-                            matched_pay = matched_pay.sort_values("Timestamp", ascending=False)
-                        except Exception:
-                            pass
-                        latest = matched_pay.iloc[0]
-                        proof_upload_time = str(latest.get("Timestamp", "") or "")
-                        proof_url = str(latest.get(PROOF_COL, "") or "")
-                        folder_url = str(latest.get("FolderUrl", "") or "")
+        has_uploaded_proof = bool(payment_info.get("proof_url"))
+        proof_upload_time = payment_info.get("timestamp", "")
+        proof_url = payment_info.get("proof_url", "")
+        folder_url = payment_info.get("folder_url", "")
+        pilih_jenis = payment_info.get("pilih_jenis", "")
+        parking_lot = payment_info.get("parking_lot", "")
+        fnb_lot = payment_info.get("fnb_lot", "")
 
         # ====================================================
         # STATUS KAD
@@ -295,14 +318,14 @@ if submitted and query:
                     st.success("✓ **Permohonan Diluluskan**")
                     st.markdown("Tahniah! Permohonan anda telah diluluskan. Sila buat bayaran dan upload bukti untuk konfirmasi slot anda.")
 
-                               # === KAD MAKLUMAT PEMBAYARAN ===
+                # === KAD MAKLUMAT PEMBAYARAN ===
                 with st.container(border=True):
-                    st.caption("MAKLUMAT PEMBAYARAN")
-                    st.markdown("<b>Bank:</b> MAYBANK", unsafe_allow_html=True)
-                    st.markdown("<b>Nama Akaun:</b> PRINTHERO MERCHANDISE SDN. BHD.", unsafe_allow_html=True)
-                    st.markdown("<b>No. Akaun:</b> 557054621057", unsafe_allow_html=True)
-                    st.markdown("<b>Remark:</b> PFMCBS (4 digit terakhir No. Telefon)", unsafe_allow_html=True)
-                    st.markdown("<b>Contoh:</b> PFMCBS1234", unsafe_allow_html=True)
+                    st.caption("💳 MAKLUMAT PEMBAYARAN")
+                    st.markdown("🏦 <b>Bank:</b> MAYBANK", unsafe_allow_html=True)
+                    st.markdown("👤 <b>Nama Akaun:</b> PRINTHERO MERCHANDISE SDN. BHD.", unsafe_allow_html=True)
+                    st.markdown("🔢 <b>No. Akaun:</b> 557054621057", unsafe_allow_html=True)
+                    st.markdown("📝 <b>Remark:</b> PFMCBS (4 digit terakhir No. Telefon)", unsafe_allow_html=True)
+                    st.markdown("📋 <b>Contoh:</b> PFMCBS1234", unsafe_allow_html=True)
 
                 # === NOTA PENTING ===
                 st.warning("⚠️ **Penting:** Kalau bayaran tidak diterima **2 hari sebelum event**, slot anda akan dibatalkan automatik.")
@@ -321,7 +344,18 @@ if submitted and query:
             else:
                 with st.container(border=True):
                     st.success("✓ **Permohonan Disahkan**")
-                    st.markdown("Tahniah! Anda telah berjaya mendaftar dan membuat pembayaran. Sertai kumpulan WhatsApp vendor untuk maklumat lanjut.")
+                    st.markdown("Tahniah! Anda telah berjaya mendaftar dan membuat pembayaran. Berikut adalah maklumat slot anda:")
+
+                # === KAD DETAIL SLOT (PILIHAN LOT) ===
+                if pilih_jenis or parking_lot or fnb_lot:
+                    with st.container(border=True):
+                        st.caption("📍 MAKLUMAT SLOT ANDA")
+                        if pilih_jenis:
+                            st.markdown(f"<b>Jenis:</b> {pilih_jenis}", unsafe_allow_html=True)
+                        if parking_lot:
+                            st.markdown(f"<b>Parking Lot:</b> {parking_lot}", unsafe_allow_html=True)
+                        if fnb_lot:
+                            st.markdown(f"<b>F&B Lot:</b> {fnb_lot}", unsafe_allow_html=True)
 
                 st.markdown("**Sertai WhatsApp Group Vendor**")
                 st.caption("Dapatkan maklumat terkini tentang event, susun atur booth, dan update penting.")
