@@ -100,7 +100,7 @@ def get_deposit(vendor_type):
     """
     Deposit refundable:
     - F&B
-    - Arts & Crafts / Toys
+    - Arts/Crafts & Others
     """
 
     try:
@@ -111,7 +111,7 @@ def get_deposit(vendor_type):
                 st.secrets["event"]["deposit_fb"]
             )
 
-        elif vendor_type == "Arts & Crafts / Toys":
+        elif vendor_type == "Arts/Crafts & Others":
 
             return float(
                 st.secrets["event"].get(
@@ -245,11 +245,10 @@ def get_vendor_payment_info(
             latest.get("Pilih F&B Lot", "")
         ),
 
+        # Baca kolum baru dahulu, fallback ke kolum lama
         "arts_lot": _clean(
-            latest.get(
-                "Pilih Arts & Crafts / Toys Lot",
-                ""
-            )
+            latest.get("Pilih Arts/Crafts & Others Lot", "")
+            or latest.get("Pilih Arts & Crafts / Toys Lot", "")
         ),
     }
 
@@ -930,7 +929,7 @@ if submitted and query:
                 # Termasuk:
                 # - Car Boot Sales (parking lot)
                 # - F&B (F&B lot)
-                # - Arts & Crafts / Toys (arts lot)
+                # - Arts/Crafts & Others (arts lot)
                 # ==============================================
                 if (
                     parking_lot
@@ -990,7 +989,7 @@ if submitted and query:
 
 
                         # --------------------------------------
-                        # ARTS & CRAFTS / TOYS LOT
+                        # ARTS/CRAFTS & OTHERS LOT
                         # --------------------------------------
                         if arts_lot:
 
@@ -1001,7 +1000,7 @@ if submitted and query:
                                     border-radius: 10px;
                                     padding: 14px 16px;
                                 ">
-                                    <b>🎨 Arts & Crafts / Toys Lot:</b>
+                                    <b>🎨 Arts/Crafts & Others Lot:</b>
                                     {arts_lot}
                                 </div>
                                 """,
