@@ -48,7 +48,7 @@ VALID_STATUSES = ["Pending", "Approved", "Rejected", "Cancelled"]
 
 CAT_CARBOOT = "Car Boot Sales"
 CAT_FB = "F&B"
-CAT_ARTS = "Arts & Crafts / Toys"   # >>> TAMBAH
+CAT_ARTS = "Arts & Crafts / Toys"
 
 
 # ============================================================
@@ -108,6 +108,16 @@ def format_phone_display(raw):
     elif len(digits) == 10:
         return f"{digits[:2]}-{digits[2:6]} {digits[6:]}"
     return digits
+
+
+def clean_cat_str(raw):
+    """Bersihkan nilai kategori F&B — buang nan/none."""
+    if raw is None or pd.isna(raw):
+        return ""
+    s = str(raw).strip()
+    if s.lower() in ("nan", "none", "nat", "null"):
+        return ""
+    return s
 
 
 # ============================================================
@@ -201,11 +211,10 @@ if payments_df is None or payments_df.empty:
         columns=[
             "Timestamp", "Plate Number", PROOF_COL, "FolderUrl",
             "Pilih parking lot", "Pilih F&B Lot",
-            "Pilih Arts & Crafts / Toys Lot",   # >>> TAMBAH
+            "Pilih Arts & Crafts / Toys Lot",
         ]
     )
 
-# >>> TAMBAH "Pilih Arts & Crafts / Toys Lot" dalam senarai kolum wajib
 for col in [
     "Timestamp", "Plate Number", PROOF_COL, "FolderUrl",
     "Pilih parking lot", "Pilih F&B Lot",
@@ -251,7 +260,7 @@ def get_vendor_payment_info(plate):
             "timestamp": "",
             "parking_lot": "",
             "fnb_lot": "",
-            "arts_lot": "",   # >>> TAMBAH
+            "arts_lot": "",
         }
 
     try:
@@ -266,7 +275,6 @@ def get_vendor_payment_info(plate):
     col_ts      = _pick_col(payments_df, "Timestamp", "Tarikh")
     col_parking = _pick_col(payments_df, "Pilih parking lot", "Parking Lot", "Parking")
     col_fnb     = _pick_col(payments_df, "Pilih F&B Lot", "F&B Lot", "FNB Lot", "F&B")
-    # >>> TAMBAH: cari kolum Arts & Crafts lot
     col_arts    = _pick_col(
         payments_df,
         "Pilih Arts & Crafts / Toys Lot",
@@ -286,7 +294,7 @@ def get_vendor_payment_info(plate):
         "timestamp":   _get(col_ts),
         "parking_lot": _get(col_parking),
         "fnb_lot":     _get(col_fnb),
-        "arts_lot":    _get(col_arts),   # >>> TAMBAH
+        "arts_lot":    _get(col_arts),
     }
 
 
@@ -346,6 +354,14 @@ def safe_update(conn, df):
     if COL_PHONE in df.columns:
         df[COL_PHONE] = df[COL_PHONE].astype("object").fillna("").astype(str)
     conn.update(data=df)
+
+
+# ============================================================
+# SCROLLABLE CONTAINER HELPER
+# ============================================================
+def scroll_container(height=520):
+    """Return container yang boleh scroll (max-height)."""
+    return st.container(height=height, border=False)
 
 
 # ============================================================
@@ -734,7 +750,7 @@ if show_section("3️⃣ Permohonan Menunggu"):
 
 
 # ============================================================
-# SECTION 3 — PERMOHONAN MENUNGGU (CARD VIEW)
+# SECTION 3 — PERMOHONAN MENUNGGU (CARD VIEW, SCROLLABLE)
 # ============================================================
 if show_section("3️⃣ Permohonan Menunggu"):
     st.markdown("## 3️⃣ Permohonan Menunggu")
@@ -748,7 +764,8 @@ if show_section("3️⃣ Permohonan Menunggu"):
         f_col1, f_col2 = st.columns([2, 2])
 
         with f_col1:
-            type_options = ["Semua"] + sorted(pending_df[COL_TYPE].dropna().unique().tolist())
+            # >>> GUNA senarai tetap supaya "Arts & Crafts / Toys" sentiasa muncul
+            type_options = ["Semua", "Car Boot Sales", "F&B", "Arts & Crafts / Toys"]
             type_filter = st.selectbox("Kategori", options=type_options, key="pending_type_filter")
 
         with f_col2:
@@ -777,51 +794,53 @@ if show_section("3️⃣ Permohonan Menunggu"):
         if filtered.empty:
             st.warning("Tiada permohonan sepadan dengan tapisan anda.")
         else:
-            for _, row in filtered.iterrows():
-                plate = row[COL_PLATE]
-                name = row[COL_NAME]
-                v_type = row[COL_TYPE]
-                v_cat = row.get(COL_CAT, "")
-                phone = format_phone_display(row[COL_PHONE])
+            # >>> SCROLLABLE CONTAINER
+            with st.container(height=600, border=False):
+                for _, row in filtered.iterrows():
+                    plate = row[COL_PLATE]
+                    name = row[COL_NAME]
+                    v_type = row[COL_TYPE]
+                    v_cat = clean_cat_str(row.get(COL_CAT, ""))
+                    phone = format_phone_display(row[COL_PHONE])
 
-                cat_str = f" / {v_cat}" if pd.notna(v_cat) and str(v_cat).strip() else ""
+                    cat_str = f" / {v_cat}" if v_cat else ""
 
-                with st.container(border=True):
-                    st.markdown(
-                        f"<div style='font-size: 1rem; font-weight: 600; color: #292524; margin-bottom: 0.25rem;'>"
-                        f"📋 {plate} — {name}"
-                        f"</div>"
-                        f"<div style='font-size: 0.9rem; color: #57534e; margin-bottom: 0.15rem;'>"
-                        f"{v_type}{cat_str}"
-                        f"</div>"
-                        f"<div style='font-size: 0.85rem; color: #78716c; margin-bottom: 0.5rem;'>"
-                        f"📞 {phone}"
-                        f"</div>",
-                        unsafe_allow_html=True,
-                    )
+                    with st.container(border=True):
+                        st.markdown(
+                            f"<div style='font-size: 1rem; font-weight: 600; color: #292524; margin-bottom: 0.25rem;'>"
+                            f"📋 {plate} — {name}"
+                            f"</div>"
+                            f"<div style='font-size: 0.9rem; color: #57534e; margin-bottom: 0.15rem;'>"
+                            f"{v_type}{cat_str}"
+                            f"</div>"
+                            f"<div style='font-size: 0.85rem; color: #78716c; margin-bottom: 0.5rem;'>"
+                            f"📞 {phone}"
+                            f"</div>",
+                            unsafe_allow_html=True,
+                        )
 
-                    v_total = get_vendor_total(v_type, row.get(COL_ADDON, ""))
-                    st.caption(f"💰 Total: {format_rm(v_total)}")
+                        v_total = get_vendor_total(v_type, row.get(COL_ADDON, ""))
+                        st.caption(f"💰 Total: {format_rm(v_total)}")
 
-                    b1, b2, b3, _ = st.columns([1, 1, 1, 3])
+                        b1, b2, b3, _ = st.columns([1, 1, 1, 3])
 
-                    with b1:
-                        if st.button("✓ Lulus", type="primary", use_container_width=True, key=f"approve_{plate}"):
-                            confirm_approve_dialog(plate, name)
+                        with b1:
+                            if st.button("✓ Lulus", type="primary", use_container_width=True, key=f"approve_{plate}"):
+                                confirm_approve_dialog(plate, name)
 
-                    with b2:
-                        if st.button("✗ Tolak", use_container_width=True, key=f"reject_{plate}"):
-                            confirm_reject_dialog(plate, name)
+                        with b2:
+                            if st.button("✗ Tolak", use_container_width=True, key=f"reject_{plate}"):
+                                confirm_reject_dialog(plate, name)
 
-                    with b3:
-                        if st.button("✎ Edit", use_container_width=True, key=f"edit_{plate}"):
-                            edit_vendor_dialog(plate)
+                        with b3:
+                            if st.button("✎ Edit", use_container_width=True, key=f"edit_{plate}"):
+                                edit_vendor_dialog(plate)
 
     st.divider()
 
 
 # ============================================================
-# SECTION 4 — REKOD BAYARAN (F&B / Car Boot / Others)
+# SECTION 4 — REKOD BAYARAN (dengan filter + scrollable)
 # ============================================================
 if show_section("4️⃣ Rekod Bayaran"):
     st.markdown("## 4️⃣ Rekod Bayaran")
@@ -842,98 +861,156 @@ if show_section("4️⃣ Rekod Bayaran"):
 
         st.markdown("---")
 
-        payment_filter = st.selectbox(
-            "Filter Bukti",
-            options=["Semua", "Belum Upload Bukti", "Sudah Upload Bukti"],
-            key="payment_filter",
-        )
+        # ============================================================
+        # FILTER — Kategori & Status Bukti
+        # ============================================================
+        filter_col1, filter_col2 = st.columns([1, 1])
 
-        def apply_proof_filter(d):
-            if payment_filter == "Belum Upload Bukti":
-                return d[~d[COL_PLATE].apply(lambda p: bool(get_vendor_payment_info(p)["proof_url"]))]
-            if payment_filter == "Sudah Upload Bukti":
-                return d[d[COL_PLATE].apply(lambda p: bool(get_vendor_payment_info(p)["proof_url"]))]
+        with filter_col1:
+            category_filter = st.selectbox(
+                "Kategori",
+                options=["Semua", "Car Boot Sales", "F&B", "Arts & Crafts / Toys"],
+                key="payment_category_filter",
+            )
+
+        with filter_col2:
+            proof_status_filter = st.selectbox(
+                "Status Bukti",
+                options=[
+                    "Semua",
+                    "⏳ Perlu Semak Bukti",
+                    "✅ Sudah Disemak",
+                    "⬜ Belum Upload Bukti",
+                ],
+                key="payment_proof_filter",
+            )
+
+        # ============================================================
+        # ASINGKAN VENDOR IKUT KATEGORI + STATUS BUKTI
+        # ============================================================
+        def _vendor_has_proof(plate):
+            return bool(get_vendor_payment_info(plate)["proof_url"])
+
+        def _filter_by_category(d):
+            if category_filter == "Semua":
+                return d
+            return d[d[COL_TYPE] == category_filter]
+
+        def _filter_by_proof(d):
+            if proof_status_filter == "⏳ Perlu Semak Bukti":
+                return d[d[COL_PLATE].apply(_vendor_has_proof) & (~d["Paid"])]
+            if proof_status_filter == "✅ Sudah Disemak":
+                return d[d["Paid"]]
+            if proof_status_filter == "⬜ Belum Upload Bukti":
+                return d[~d[COL_PLATE].apply(_vendor_has_proof)]
             return d
 
-        fb_df_approved = approved_df[approved_df[COL_TYPE] == CAT_FB]
-        cb_df_approved = approved_df[approved_df[COL_TYPE] == CAT_CARBOOT]
-        ot_df_approved = approved_df[~approved_df[COL_TYPE].isin([CAT_CARBOOT, CAT_FB])]
+        if category_filter == "Semua":
+            category_sections = [
+                ("F&B", "🍽️", CAT_FB, "fb"),
+                ("Car Boot Sales", "🚗", CAT_CARBOOT, "cb"),
+                ("Arts & Crafts / Toys", "🎨", CAT_ARTS, "arts"),
+            ]
+        else:
+            mapping = {
+                "F&B": ("F&B", "🍽️", CAT_FB, "fb"),
+                "Car Boot Sales": ("Car Boot Sales", "🚗", CAT_CARBOOT, "cb"),
+                "Arts & Crafts / Toys": ("Arts & Crafts / Toys", "🎨", CAT_ARTS, "arts"),
+            }
+            category_sections = [mapping[category_filter]]
 
+        # ============================================================
+        # RENDER SECTION (SCROLLABLE)
+        # ============================================================
         def render_payment_section(title, icon, section_df, key_prefix):
             st.markdown(f"### {icon} {title}")
 
-            section_df = apply_proof_filter(section_df)
+            section_df = _filter_by_category(section_df)
+            section_df = _filter_by_proof(section_df)
 
             if section_df.empty:
-                st.info(f"Tiada vendor {title} untuk dipaparkan.")
+                if proof_status_filter != "Semua":
+                    st.info(f"Tiada vendor {title} untuk filter **{proof_status_filter}**.")
+                else:
+                    st.info(f"Tiada vendor {title} untuk dipaparkan.")
                 st.markdown("")
                 return
 
             n_paid = int(section_df["Paid"].sum())
             n_unpaid = len(section_df) - n_paid
+            n_with_proof = sum(1 for p in section_df[COL_PLATE] if _vendor_has_proof(p))
+            n_need_check = sum(
+                1 for _, r in section_df.iterrows()
+                if _vendor_has_proof(r[COL_PLATE]) and not bool(r["Paid"])
+            )
+
             st.caption(
-                f"**{len(section_df)}** vendor — ✅ {n_paid} bayar &nbsp;|&nbsp; ⏳ {n_unpaid} belum bayar"
+                f"**{len(section_df)}** vendor — "
+                f"✅ {n_paid} bayar &nbsp;|&nbsp; ⏳ {n_unpaid} belum bayar &nbsp;|&nbsp; "
+                f"📄 {n_with_proof} upload bukti &nbsp;|&nbsp; 🔍 {n_need_check} perlu semak"
             )
 
             new_paid_status = {}
 
             with st.form(f"payment_form_{key_prefix}"):
-                for _, row in section_df.iterrows():
-                    plate = row[COL_PLATE]
-                    info = get_vendor_payment_info(plate)
+                # >>> SCROLLABLE CONTAINER
+                with st.container(height=500, border=False):
+                    for _, row in section_df.iterrows():
+                        plate = row[COL_PLATE]
+                        info = get_vendor_payment_info(plate)
 
-                    proof_url   = info["proof_url"]
-                    folder_url  = info["folder_url"]
-                    parking_lot = info["parking_lot"]
-                    fnb_lot     = info["fnb_lot"]
-                    arts_lot    = info["arts_lot"]   # >>> TAMBAH
+                        proof_url   = info["proof_url"]
+                        folder_url  = info["folder_url"]
+                        parking_lot = info["parking_lot"]
+                        fnb_lot     = info["fnb_lot"]
+                        arts_lot    = info["arts_lot"]
 
-                    v_t = str(row.get(COL_TYPE, "")).strip()
-                    v_total = get_vendor_total(v_t, row.get(COL_ADDON, ""))
+                        v_t = str(row.get(COL_TYPE, "")).strip()
+                        v_total = get_vendor_total(v_t, row.get(COL_ADDON, ""))
 
-                    cols = st.columns([3, 2, 1, 1])
+                        cols = st.columns([3, 2, 1, 1])
 
-                    with cols[0]:
-                        status_icon = "✅" if proof_url else "⬜"
-                        sub = str(row.get(COL_CAT, "")).strip()
-                        sub_str = f" / {sub}" if sub else ""
+                        with cols[0]:
+                            status_icon = "✅" if proof_url else "⬜"
+                            sub = clean_cat_str(row.get(COL_CAT, ""))
+                            sub_str = f" / {sub}" if sub else ""
+                            st.markdown(
+                                f"{status_icon} **{plate}** — {row[COL_NAME]}  \n"
+                                f"<span style='color:#78716c;font-size:0.85rem'>"
+                                f"{row[COL_TYPE]}{sub_str}</span>",
+                                unsafe_allow_html=True,
+                            )
+
+                        with cols[1]:
+                            if proof_url:
+                                st.markdown(f"[📄 Bukti]({proof_url})")
+                                if folder_url:
+                                    st.markdown(f"[📁 Folder]({folder_url})")
+                            else:
+                                st.caption("_Belum upload_")
+
+                            if parking_lot:
+                                st.caption(f"🅿️ Parking: **{parking_lot}**")
+                            if fnb_lot:
+                                st.caption(f"🍽️ F&B Lot: **{fnb_lot}**")
+                            if arts_lot:
+                                st.caption(f"🎨 Arts Lot: **{arts_lot}**")
+
+                        with cols[2]:
+                            st.markdown(f"**{format_rm(v_total)}**")
+
+                        with cols[3]:
+                            new_val = st.checkbox(
+                                "Sudah Bayar",
+                                value=bool(row["Paid"]),
+                                key=f"paid_{key_prefix}_{plate}",
+                            )
+                            new_paid_status[plate] = new_val
+
                         st.markdown(
-                            f"{status_icon} **{plate}** — {row[COL_NAME]}  \n"
-                            f"<span style='color:#78716c;font-size:0.85rem'>"
-                            f"{row[COL_TYPE]}{sub_str}</span>",
+                            "<hr style='margin:0.75rem 0;border:none;border-top:1px solid #f0e6d6;'>",
                             unsafe_allow_html=True,
                         )
-
-                    with cols[1]:
-                        if proof_url:
-                            st.markdown(f"[📄 Bukti]({proof_url})")
-                            if folder_url:
-                                st.markdown(f"[📁 Folder]({folder_url})")
-                        else:
-                            st.caption("_Belum upload_")
-
-                        if parking_lot:
-                            st.caption(f"🅿️ Parking: **{parking_lot}**")
-                        if fnb_lot:
-                            st.caption(f"🍽️ F&B Lot: **{fnb_lot}**")
-                        if arts_lot:   # >>> TAMBAH
-                            st.caption(f"🎨 Arts Lot: **{arts_lot}**")
-
-                    with cols[2]:
-                        st.markdown(f"**{format_rm(v_total)}**")
-
-                    with cols[3]:
-                        new_val = st.checkbox(
-                            "Sudah Bayar",
-                            value=bool(row["Paid"]),
-                            key=f"paid_{key_prefix}_{plate}",
-                        )
-                        new_paid_status[plate] = new_val
-
-                    st.markdown(
-                        "<hr style='margin:0.75rem 0;border:none;border-top:1px solid #f0e6d6;'>",
-                        unsafe_allow_html=True,
-                    )
 
                 save_clicked = st.form_submit_button(
                     f"💾 Simpan Status Bayaran — {title}",
@@ -965,13 +1042,11 @@ if show_section("4️⃣ Rekod Bayaran"):
 
             st.markdown("")
 
-        render_payment_section("F&B", "🍽️", fb_df_approved, "fb")
-        st.divider()
-
-        render_payment_section("Car Boot Sales", "🚗", cb_df_approved, "cb")
-        st.divider()
-
-        render_payment_section("Others (Arts & Crafts / Toys)", "🎨", ot_df_approved, "ot")
+        for i, (title, icon, cat_const, key_prefix) in enumerate(category_sections):
+            section_df = approved_df[approved_df[COL_TYPE] == cat_const]
+            render_payment_section(title, icon, section_df, key_prefix)
+            if i < len(category_sections) - 1:
+                st.divider()
 
     st.divider()
 
@@ -1048,24 +1123,20 @@ if show_all:
     # ============================================================
     display_df = filtered_all.copy()
 
-    # Tambah Parking Lot, F&B Lot, Arts & Crafts Lot dari Sheet Payments
     display_df["Parking Lot"] = display_df[COL_PLATE].apply(
         lambda p: get_vendor_payment_info(p)["parking_lot"] or "-"
     )
     display_df["F&B Lot"] = display_df[COL_PLATE].apply(
         lambda p: get_vendor_payment_info(p)["fnb_lot"] or "-"
     )
-    # >>> TAMBAH
     display_df["Arts & Crafts Lot"] = display_df[COL_PLATE].apply(
         lambda p: get_vendor_payment_info(p)["arts_lot"] or "-"
     )
 
-    # Tambah Total Price
     display_df["Total Price"] = display_df.apply(
         lambda r: format_rm(get_vendor_total(r[COL_TYPE], r.get(COL_ADDON, ""))), axis=1
     )
 
-    # Buang kolum tak perlu
     drop_exact = {
         "Media Sosial Perniagaan (Jika Ada)",
         "Senarai Produk yang Dijual\nListkan:\n1. baju\n2. seluar",
@@ -1093,18 +1164,16 @@ if show_all:
 
     display_df = display_df[[c for c in display_df.columns if not _should_drop(c)]]
 
-    # Format phone supaya cantik
     if COL_PHONE in display_df.columns:
         display_df[COL_PHONE] = display_df[COL_PHONE].apply(format_phone_display)
 
-    # Susun semula kolum penting di depan
     priority_cols = [COL_PLATE, COL_NAME, COL_PHONE, COL_TYPE, COL_CAT,
                      "Parking Lot", "F&B Lot", "Arts & Crafts Lot", "Total Price"]
     ordered_cols = [c for c in priority_cols if c in display_df.columns] + \
                    [c for c in display_df.columns if c not in priority_cols]
     display_df = display_df[ordered_cols]
 
-    st.dataframe(display_df, hide_index=True, use_container_width=True)
+    st.dataframe(display_df, hide_index=True, use_container_width=True, height=500)
 
     st.markdown("<div style='height: 1rem;'></div>", unsafe_allow_html=True)
 
@@ -1129,9 +1198,6 @@ if show_all:
 
     st.markdown("<div style='height: 0.5rem;'></div>", unsafe_allow_html=True)
 
-    # ============================================================
-    # CSV — guna DataFrame yang SAMA (Lot + Total dah ada)
-    # ============================================================
     csv_all = display_df.to_csv(index=False).encode("utf-8-sig")
 
     st.download_button(
