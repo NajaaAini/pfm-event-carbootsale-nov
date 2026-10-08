@@ -28,6 +28,7 @@ COL_TYPE = "Kategori Produk/Product Category"
 COL_CAT = "F&B CATEGORY"
 COL_PLATE = "Plate Number"
 COL_ADDON = "ADD ON"
+COL_REMARK = "Remark"
 
 PROOF_COL = "Upload Bukti Bayaran dan Pemilihan Lot"
 
@@ -257,13 +258,11 @@ def get_vendor_payment_info(
             latest.get("Pilih F&B Lot", "")
         ),
 
-        # Food Truck kongsi lot F&B
         "ft_lot": _clean(
             latest.get("Pilih Food Truck Lot", "")
             or latest.get("Pilih F&B Lot", "")
         ),
 
-        # Baca kolum baru dahulu, fallback ke kolum lama
         "arts_lot": _clean(
             latest.get("Pilih Arts/Crafts & Others Lot", "")
             or latest.get("Pilih Arts & Crafts / Toys Lot", "")
@@ -759,6 +758,27 @@ if submitted and query:
                 )
 
 
+                # === NOTA ADMIN ===
+                admin_note = ""
+                if pd.notna(row.get("Notes")) and str(row.get("Notes")).strip():
+                    admin_note = str(row.get("Notes")).strip()
+
+                if admin_note:
+                    with st.container(border=True):
+                        st.caption("📝 NOTA DARI ADMIN")
+                        st.info(admin_note)
+
+                # === REMARK VENDOR ===
+                vendor_remark = ""
+                if pd.notna(row.get(COL_REMARK)) and str(row.get(COL_REMARK)).strip():
+                    vendor_remark = str(row.get(COL_REMARK)).strip()
+
+                if vendor_remark:
+                    with st.container(border=True):
+                        st.caption("📋 REMARK ANDA")
+                        st.markdown(vendor_remark)
+
+
             # ==================================================
             # CASE 2:
             # APPROVED + BELUM PAID + BELUM UPLOAD
@@ -860,6 +880,27 @@ if submitted and query:
                     )
 
 
+                # === NOTA ADMIN ===
+                admin_note = ""
+                if pd.notna(row.get("Notes")) and str(row.get("Notes")).strip():
+                    admin_note = str(row.get("Notes")).strip()
+
+                if admin_note:
+                    with st.container(border=True):
+                        st.caption("📝 NOTA DARI ADMIN")
+                        st.info(admin_note)
+
+                # === REMARK VENDOR ===
+                vendor_remark = ""
+                if pd.notna(row.get(COL_REMARK)) and str(row.get(COL_REMARK)).strip():
+                    vendor_remark = str(row.get(COL_REMARK)).strip()
+
+                if vendor_remark:
+                    with st.container(border=True):
+                        st.caption("📋 REMARK ANDA")
+                        st.markdown(vendor_remark)
+
+
                 # ==============================================
                 # MAKLUMAT PEMBAYARAN
                 # ==============================================
@@ -906,7 +947,8 @@ if submitted and query:
                 st.warning(
                     "⚠️ **Penting:** Kalau bayaran "
                     "tidak diterima **2 hari sebelum event**, "
-                    "slot anda akan dibatalkan automatik."
+                    "slot anda akan dibatalkan automatik. "
+                    "**Sila upload bukti bayaran dalam format PDF sahaja.**"
                 )
 
 
@@ -947,14 +989,29 @@ if submitted and query:
                     )
 
 
+                # === NOTA ADMIN ===
+                admin_note = ""
+                if pd.notna(row.get("Notes")) and str(row.get("Notes")).strip():
+                    admin_note = str(row.get("Notes")).strip()
+
+                if admin_note:
+                    with st.container(border=True):
+                        st.caption("📝 NOTA DARI ADMIN")
+                        st.info(admin_note)
+
+                # === REMARK VENDOR ===
+                vendor_remark = ""
+                if pd.notna(row.get(COL_REMARK)) and str(row.get(COL_REMARK)).strip():
+                    vendor_remark = str(row.get(COL_REMARK)).strip()
+
+                if vendor_remark:
+                    with st.container(border=True):
+                        st.caption("📋 REMARK ANDA")
+                        st.markdown(vendor_remark)
+
+
                 # ==============================================
                 # DETAIL SLOT
-                #
-                # Termasuk:
-                # - Car Boot Sales (parking lot)
-                # - F&B (F&B lot)
-                # - Food Truck (Food Truck / F&B lot)
-                # - Arts/Crafts & Others (arts lot)
                 # ==============================================
                 if (
                     parking_lot
