@@ -4,7 +4,7 @@ import re
 from streamlit_gsheets import GSheetsConnection
 from datetime import date, timedelta, datetime
 from style import apply_style
-from components import page_header, load_sheet_safe, log_action, convert_df_to_csv
+from components import page_header, load_sheet_safe, log_action
 
 st.set_page_config(page_title="Admin Panel", layout="wide")
 apply_style()
@@ -1053,7 +1053,50 @@ if show_all:
 
     st.markdown("<div style='height: 0.5rem;'></div>", unsafe_allow_html=True)
 
-    csv_all = convert_df_to_csv(filtered_all)
+    # ============================================================
+    # BINA CSV KHAS UNTUK DOWNLOAD
+    # - Buang kolum tak perlu
+    # - Tambah Parking Lot & F&B Lot dari Sheet Payments
+    # ============================================================
+    drop_exact = {
+        "Media Sosial Perniagaan (Jika Ada)",
+        "Senarai Produk yang Dijual\nListkan:\n1. baju\n2. seluar",
+        "Notes",
+    }
+    drop_contains = [
+        "Media Sosial Perniagaan",
+        "Senarai Produk yang Dijual\nListkan",
+    ]
+
+    def _should_drop(col_name):
+        if col_name in drop_exact:
+            return True
+        for pat in drop_contains:
+            if pat in str(col_name):
+                return True
+        if str(col_name).strip() == "Notes":
+            return True
+        return False
+
+    csv_df = filtered_all.copy()
+
+    # Tambah Parking Lot & F&B Lot ikut plate
+    csv_df["Parking Lot"] = csv_df[COL_PLATE].apply(
+        lambda p: get_vendor_payment_info(p)["parking_lot"]
+    )
+    csv_df["F&B Lot"] = csv_df[COL_PLATE].apply(
+        lambda p: get_vendor_payment_info(p)["fnb_lot"]
+    )
+
+    # Buang kolum tak perlu
+    csv_df = csv_df[[c for c in csv_df.columns if not _should_drop(c)]]
+
+    # Format phone supaya cantik dalam CSV
+    if COL_PHONE in csv_df.columns:
+        csv_df[COL_PHONE] = csv_df[COL_PHONE].apply(format_phone_display)
+
+    csv_all = csv_df.to_csv(index=False).encode("utf-8-sig")
+
     st.download_button(
         "📥 Muat Turun CSV (Semua Vendor)",
         data=csv_all,
