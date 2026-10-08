@@ -194,7 +194,6 @@ def normalize_type(raw):
     s = str(raw).strip()
     if s.lower() in ("", "nan", "none", "nat", "null"):
         return ""
-    # Data lama -> canonical baru
     if s.lower() in ("arts & crafts / toys", "arts & crafts", "arts/crafts"):
         return "Arts/Crafts & Others"
     if s.lower() in ("food truck", "foodtruck", "ft"):
@@ -342,14 +341,14 @@ if payments_df is None or payments_df.empty:
         columns=[
             "Timestamp", "Plate Number", PROOF_COL, "FolderUrl",
             "Pilih parking lot", "Pilih F&B Lot",
-            "Pilih Arts & Crafts / Toys Lot",
+            "Pilih Arts/Crafts & Others Lot", "Pilih Food Truck Lot",
         ]
     )
 
 for col in [
     "Timestamp", "Plate Number", PROOF_COL, "FolderUrl",
     "Pilih parking lot", "Pilih F&B Lot",
-    "Pilih Arts & Crafts / Toys Lot",
+    "Pilih Arts/Crafts & Others Lot", "Pilih Food Truck Lot",
 ]:
     if col not in payments_df.columns:
         payments_df[col] = ""
@@ -384,7 +383,7 @@ def get_vendor_payment_info(plate):
     if matched.empty:
         return {
             "proof_url": "", "folder_url": "", "timestamp": "",
-            "parking_lot": "", "fnb_lot": "", "arts_lot": "",
+            "parking_lot": "", "fnb_lot": "", "ft_lot": "", "arts_lot": "",
         }
 
     try:
@@ -399,6 +398,13 @@ def get_vendor_payment_info(plate):
     col_ts      = _pick_col(payments_df, "Timestamp", "Tarikh")
     col_parking = _pick_col(payments_df, "Pilih parking lot", "Parking Lot", "Parking")
     col_fnb     = _pick_col(payments_df, "Pilih F&B Lot", "F&B Lot", "FNB Lot", "F&B")
+    col_ft      = _pick_col(
+        payments_df,
+        "Pilih Food Truck Lot",
+        "Food Truck Lot",
+        "Food Truck",
+        "FT Lot",
+    )
     col_arts    = _pick_col(
         payments_df,
         "Pilih Arts/Crafts & Others Lot",
@@ -419,6 +425,7 @@ def get_vendor_payment_info(plate):
         "timestamp":   _get(col_ts),
         "parking_lot": _get(col_parking),
         "fnb_lot":     _get(col_fnb),
+        "ft_lot":      _get(col_ft),
         "arts_lot":    _get(col_arts),
     }
 
@@ -980,6 +987,7 @@ if show_section("4️⃣ Rekod Bayaran"):
             proof_url   = info["proof_url"]
             parking_lot = info["parking_lot"]
             fnb_lot     = info["fnb_lot"]
+            ft_lot      = info.get("ft_lot", "")
             arts_lot    = info["arts_lot"]
 
             row_type = str(row[COL_TYPE]).strip()
@@ -988,11 +996,11 @@ if show_section("4️⃣ Rekod Bayaran"):
             elif row_type == CAT_FB:
                 lot_val = fnb_lot
             elif row_type == CAT_FT:
-                lot_val = fnb_lot
+                lot_val = ft_lot or fnb_lot
             elif row_type == CAT_ARTS:
                 lot_val = arts_lot
             else:
-                lot_val = parking_lot or fnb_lot or arts_lot
+                lot_val = parking_lot or fnb_lot or ft_lot or arts_lot
 
             v_t = str(row.get(COL_TYPE, "")).strip()
             v_total = get_vendor_total(v_t, row.get(COL_ADDON, ""))
@@ -1138,10 +1146,15 @@ if show_all:
 
     display_df = filtered_all.copy()
 
+    # ============================================================
+    # TAMBAH KOLUM LOT — SEMUA 4 KATEGORI
+    # ============================================================
     display_df["Parking Lot"] = display_df[COL_PLATE].apply(
         lambda p: get_vendor_payment_info(p)["parking_lot"] or "-")
     display_df["F&B Lot"] = display_df[COL_PLATE].apply(
         lambda p: get_vendor_payment_info(p)["fnb_lot"] or "-")
+    display_df["Food Truck Lot"] = display_df[COL_PLATE].apply(
+        lambda p: get_vendor_payment_info(p).get("ft_lot", "") or "-")
     display_df["Arts & Crafts Lot"] = display_df[COL_PLATE].apply(
         lambda p: get_vendor_payment_info(p)["arts_lot"] or "-")
 
@@ -1176,7 +1189,8 @@ if show_all:
         display_df[COL_PHONE] = display_df[COL_PHONE].apply(format_phone_display)
 
     priority_cols = [COL_PLATE, COL_NAME, COL_PHONE, COL_TYPE, COL_CAT,
-                     "Parking Lot", "F&B Lot", "Arts & Crafts Lot", "Total Price"]
+                     "Parking Lot", "F&B Lot", "Food Truck Lot", "Arts & Crafts Lot",
+                     "Total Price"]
     ordered_cols = [c for c in priority_cols if c in display_df.columns] + \
                    [c for c in display_df.columns if c not in priority_cols]
     display_df = display_df[ordered_cols]
