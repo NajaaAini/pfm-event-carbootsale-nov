@@ -583,10 +583,8 @@ def apply_style():
     .stProgress > div > div > div > div {
         background-color: #78350f !important;
     }
-    </style>
-    """, unsafe_allow_html=True)
 
-    /* ========================================================= */
+     /* ========================================================= */
     /* === WHATSAPP ADMIN — HIJAU (override link_button) === */
     /* ========================================================= */
     div[class*="st-key-wa_admin_btn"] a,
@@ -614,3 +612,8 @@ def apply_style():
         color: #ffffff !important;
         font-weight: 600 !important;
     }
+
+    </style>
+    """, unsafe_allow_html=True)
+
+   
