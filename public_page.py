@@ -9,6 +9,43 @@ apply_style()
 page_header()
 
 # ============================================================
+# BUTANG WHATSAPP ADMIN
+# ============================================================
+WA_ADMIN = "601157727459"
+WA_TEXT = "Hi! Pertanyaan tentang vendor carbootsale PFM : ."
+
+
+def _encode_wa(text):
+    return (
+        text.replace(" ", "%20")
+            .replace("\n", "%0A")
+            .replace(",", "%2C")
+            .replace("?", "%3F")
+            .replace("&", "%26")
+    )
+
+
+WA_URL = f"https://wa.me/{WA_ADMIN}?text={_encode_wa(WA_TEXT)}"
+
+st.markdown(f"""
+<a href="{WA_URL}" target="_blank" style="
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 0.5rem;
+    background-color: #25D366;
+    color: #ffffff;
+    padding: 0.65rem 1rem;
+    border-radius: 10px;
+    text-decoration: none;
+    font-weight: 600;
+    font-size: 0.9rem;
+    margin-bottom: 1rem;
+">💬 WhatsApp Admin</a>
+""", unsafe_allow_html=True)
+
+
+# ============================================================
 # KONFIGURASI
 # ============================================================
 COL_NAME = "Nama/Name"
