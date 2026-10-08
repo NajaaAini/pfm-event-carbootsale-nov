@@ -29,7 +29,7 @@ COL_CAT = "F&B CATEGORY"
 COL_PLATE = "Plate Number"
 COL_ADDON = "ADD ON"
 
-PROOF_COL = "Upload Bukti Bayaran"
+PROOF_COL = "Upload Bukti Bayaran dan Pemilihan Lot"
 
 VALID_STATUSES = [
     "Pending",
@@ -831,8 +831,7 @@ if submitted and query:
                     st.markdown(
                         "Tahniah! Permohonan anda telah "
                         "diluluskan. Sila buat bayaran "
-                        "dan upload bukti untuk "
-                        "konfirmasi slot anda."
+                        "dan konfirmasi slot anda."
                     )
 
 
@@ -890,7 +889,7 @@ if submitted and query:
                 # UPLOAD PAYMENT PROOF
                 # ==============================================
                 st.link_button(
-                    "📤 Upload Bukti Bayaran",
+                    "📤 Upload Bukti Bayaran dan Pemilihan Slot",
                     st.secrets["event"][
                         "payment_form_url"
                     ],
