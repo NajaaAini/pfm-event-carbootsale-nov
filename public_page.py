@@ -213,6 +213,7 @@ with st.form("search"):
             "💬 WhatsApp Admin",
             WA_URL,
             use_container_width=True,
+            key="wa_admin_btn",
         )
 
 # ============================================================
