@@ -585,3 +585,32 @@ def apply_style():
     }
     </style>
     """, unsafe_allow_html=True)
+
+    /* ========================================================= */
+    /* === WHATSAPP ADMIN — HIJAU (override link_button) === */
+    /* ========================================================= */
+    div[class*="st-key-wa_admin_btn"] a,
+    div[class*="st-key-wa_admin_btn"] a:visited,
+    .st-key-wa_admin_btn a,
+    [data-testid="stLinkButton"] .st-key-wa_admin_btn a,
+    div[class*="st-key-wa_admin_btn"] [data-testid="stLinkButton"] a {
+        background-color: #128C7E !important;
+        border: 1px solid #128C7E !important;
+        color: #ffffff !important;
+    }
+    div[class*="st-key-wa_admin_btn"] a:hover,
+    .st-key-wa_admin_btn a:hover,
+    [data-testid="stLinkButton"] .st-key-wa_admin_btn a:hover {
+        background-color: #0f6f62 !important;
+        border-color: #0f6f62 !important;
+        color: #ffffff !important;
+    }
+    div[class*="st-key-wa_admin_btn"] a p,
+    div[class*="st-key-wa_admin_btn"] a span,
+    div[class*="st-key-wa_admin_btn"] a *,
+    .st-key-wa_admin_btn a p,
+    .st-key-wa_admin_btn a span,
+    .st-key-wa_admin_btn a * {
+        color: #ffffff !important;
+        font-weight: 600 !important;
+    }
