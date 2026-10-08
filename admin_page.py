@@ -179,12 +179,25 @@ VALID_STATUSES = ["Pending", "Approved", "Rejected", "Cancelled"]
 
 CAT_CARBOOT = "Car Boot Sales"
 CAT_FB = "F&B"
-CAT_ARTS = "Arts & Crafts / Toys"
+CAT_ARTS = "Arts/Crafts & Others"   # ⬅️ DIUBAH dari "Arts & Crafts / Toys"
 
 
 # ============================================================
 # HELPER
 # ============================================================
+def normalize_type(raw):
+    """Kekal string asal, tapi alias variant lama ke canonical baru."""
+    if raw is None or pd.isna(raw):
+        return ""
+    s = str(raw).strip()
+    if s.lower() in ("", "nan", "none", "nat", "null"):
+        return ""
+    # Data lama -> canonical baru
+    if s.lower() in ("arts & crafts / toys", "arts & crafts", "arts/crafts"):
+        return "Arts/Crafts & Others"
+    return s
+
+
 def normalize_status(raw):
     if raw is None or pd.isna(raw) or str(raw).strip() == "":
         return "Pending"
@@ -259,7 +272,7 @@ def get_deposit(vendor_type):
     try:
         if vt == "f&b":
             return float(st.secrets["event"]["deposit_fb"])
-        elif vt == "arts & crafts / toys":
+        elif vt == "arts/crafts & others":   # ⬅️ DIUBAH dari "arts & crafts / toys"
             return float(st.secrets["event"].get("deposit_others", 100))
         return 0.0
     except Exception:
@@ -301,6 +314,7 @@ df = load_sheet_safe(conn, "Vendors", ttl=60)
 if df is None:
     st.stop()
 
+df[COL_TYPE] = df[COL_TYPE].apply(normalize_type)   # ⬅️ TAMBAH: handle data lama
 df["Paid"] = df["Paid"].fillna(False).astype(bool)
 df["Status"] = df["Status"].apply(normalize_status)
 
@@ -379,6 +393,7 @@ def get_vendor_payment_info(plate):
     col_fnb     = _pick_col(payments_df, "Pilih F&B Lot", "F&B Lot", "FNB Lot", "F&B")
     col_arts    = _pick_col(
         payments_df,
+        "Pilih Arts/Crafts & Others Lot",   # ⬅️ TAMBAH: alias baru paling atas
         "Pilih Arts & Crafts / Toys Lot",
         "Arts & Crafts / Toys Lot",
         "Arts & Crafts Lot",
@@ -561,7 +576,7 @@ def edit_vendor_dialog(plate):
         key="edit_phone",
     )
 
-    type_options = ["Car Boot Sales", "F&B", "Arts & Crafts / Toys"]
+    type_options = ["Car Boot Sales", "F&B", "Arts/Crafts & Others"]   # ⬅️ DIUBAH
     current_type = str(vendor.get(COL_TYPE, "Car Boot Sales"))
     type_index = type_options.index(current_type) if current_type in type_options else 0
     new_type = st.selectbox("Kategori Produk", options=type_options, index=type_index, key="edit_type")
@@ -811,7 +826,7 @@ if show_section("3️⃣ Permohonan Menunggu"):
         f_col1, f_col2, f_col3 = st.columns([2, 3, 1])
 
         with f_col1:
-            type_options = ["Semua", "Car Boot Sales", "F&B", "Arts & Crafts / Toys"]
+            type_options = ["Semua", "Car Boot Sales", "F&B", "Arts/Crafts & Others"]   # ⬅️ DIUBAH
             type_filter = st.selectbox("Kategori", options=type_options, key="pending_type_filter")
 
         with f_col2:
@@ -922,7 +937,7 @@ if show_section("4️⃣ Rekod Bayaran"):
         with f1:
             category_filter = st.selectbox(
                 "Kategori",
-                options=["Semua", "Car Boot Sales", "F&B", "Arts & Crafts / Toys"],
+                options=["Semua", "Car Boot Sales", "F&B", "Arts/Crafts & Others"],   # ⬅️ DIUBAH
                 key="pay_filter_category",
             )
         with f2:
