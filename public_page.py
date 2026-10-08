@@ -22,7 +22,7 @@ page_header()
 # ============================================================
 # KONFIGURASI
 # ============================================================
-COL_NAME = "Nama/Name"
+COL_NAME = "Nama Perniagaan Syarikat"
 COL_PHONE = "Nombor Telefon/Phone Number"
 COL_TYPE = "Kategori Produk/Product Category"
 COL_CAT = "F&B CATEGORY"
