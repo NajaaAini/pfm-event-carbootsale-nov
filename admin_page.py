@@ -907,11 +907,10 @@ if show_section("4️⃣ Rekod Bayaran"):
             if bool(get_vendor_payment_info(p)["proof_url"])
         )
 
-        mc1, mc2, mc3, mc4 = st.columns(4)
+        mc1, mc2, mc3 = st.columns(3)
         mc1.metric("Diluluskan", len(approved_df))
         mc2.metric("✅ Sudah Bayar", total_paid)
         mc3.metric("⬜ Belum Bayar", total_unpaid)
-        mc4.metric("📄 Ada Bukti", total_with_proof)
 
         st.markdown("---")
 
