@@ -808,9 +808,6 @@ if show_section("3️⃣ Permohonan Menunggu"):
     if pending_df.empty:
         st.info("Tiada permohonan yang menunggu.")
     else:
-        # ============================================================
-        # FILTER ROW — label sama tinggi, caption align
-        # ============================================================
         f_col1, f_col2, f_col3 = st.columns([2, 3, 1])
 
         with f_col1:
@@ -825,7 +822,6 @@ if show_section("3️⃣ Permohonan Menunggu"):
             ).strip()
 
         with f_col3:
-            # Spacer supaya caption align dengan baseline input
             st.markdown(
                 "<div style='height: 1.85rem;'></div>"
                 f"<div style='font-size: 0.85rem; color: #78716c; text-align: right;'>"
@@ -893,7 +889,7 @@ if show_section("3️⃣ Permohonan Menunggu"):
 
 
 # ============================================================
-# SECTION 4 — REKOD BAYARAN (kotak/card view + filter)
+# SECTION 4 — REKOD BAYARAN (table padat + filter)
 # ============================================================
 if show_section("4️⃣ Rekod Bayaran"):
     st.markdown('<div class="section-title">4️⃣ Rekod Bayaran</div>', unsafe_allow_html=True)
@@ -992,103 +988,96 @@ if show_section("4️⃣ Rekod Bayaran"):
                 f"📄 {n_with_proof} upload bukti &nbsp;|&nbsp; 🔍 {n_need_check} perlu semak"
             )
 
-            new_paid_status = {}
+            # ============================================================
+            # BINA TABLE UNTUK data_editor
+            # ============================================================
+            display_rows = []
+            for _, row in section_df.iterrows():
+                plate = row[COL_PLATE]
+                info = get_vendor_payment_info(plate)
 
-            with st.form(f"payment_form_{key_prefix}"):
-                list_height = min(max(len(section_df) * 150, 200), 600)
+                proof_url   = info["proof_url"]
+                folder_url  = info["folder_url"]
+                parking_lot = info["parking_lot"]
+                fnb_lot     = info["fnb_lot"]
+                arts_lot    = info["arts_lot"]
 
-                with st.container(height=list_height, border=False):
-                    for _, row in section_df.iterrows():
-                        plate = row[COL_PLATE]
-                        info = get_vendor_payment_info(plate)
+                row_type = str(row[COL_TYPE]).strip()
+                if row_type == CAT_CARBOOT:
+                    lot_val = parking_lot
+                elif row_type == CAT_FB:
+                    lot_val = fnb_lot
+                elif row_type == CAT_ARTS:
+                    lot_val = arts_lot
+                else:
+                    lot_val = parking_lot or fnb_lot or arts_lot
 
-                        proof_url   = info["proof_url"]
-                        folder_url  = info["folder_url"]
-                        parking_lot = info["parking_lot"]
-                        fnb_lot     = info["fnb_lot"]
-                        arts_lot    = info["arts_lot"]
+                v_t = str(row.get(COL_TYPE, "")).strip()
+                v_total = get_vendor_total(v_t, row.get(COL_ADDON, ""))
+                cat = clean_cat_str(row.get(COL_CAT, ""))
+                type_str = f"{v_t} · {cat}" if cat else v_t
 
-                        v_t = str(row.get(COL_TYPE, "")).strip()
-                        v_total = get_vendor_total(v_t, row.get(COL_ADDON, ""))
+                display_rows.append({
+                    "Plate": plate,
+                    "Nama": row[COL_NAME],
+                    "Kategori": type_str,
+                    "Lot": lot_val or "—",
+                    "Total": format_rm(v_total),
+                    "Bukti": "📄 Ada" if proof_url else "⬜ Tiada",
+                    "Link": proof_url if proof_url else "",
+                    "Bayar": bool(row["Paid"]),
+                })
 
-                        with st.container(border=True):
-                            info_col, action_col = st.columns([5, 2])
+            editor_df = pd.DataFrame(display_rows)
+            editor_df = editor_df.sort_values(["Kategori", "Plate"]).reset_index(drop=True)
 
-                            with info_col:
-                                status_icon = "✅" if proof_url else "⬜"
-                                sub = clean_cat_str(row.get(COL_CAT, ""))
-                                sub_str = f" / {sub}" if sub else ""
+            row_h = 35
+            header_h = 45
+            table_height = min(max(len(editor_df) * row_h + header_h, 200), 600)
 
-                                st.markdown(
-                                    f"<div style='font-size: 0.95rem; font-weight: 600; color: #292524;'>"
-                                    f"{status_icon} {plate} — {row[COL_NAME]}"
-                                    f"</div>"
-                                    f"<div style='font-size: 0.82rem; color: #57534e; margin-top: 0.15rem;'>"
-                                    f"{row[COL_TYPE]}{sub_str}"
-                                    f"</div>",
-                                    unsafe_allow_html=True,
-                                )
+            edited = st.data_editor(
+                editor_df,
+                hide_index=True,
+                use_container_width=True,
+                height=table_height,
+                disabled=["Plate", "Nama", "Kategori", "Lot", "Total", "Bukti", "Link"],
+                column_config={
+                    "Plate": st.column_config.TextColumn("Plate", width="small"),
+                    "Nama": st.column_config.TextColumn("Nama", width="medium"),
+                    "Kategori": st.column_config.TextColumn("Kategori", width="medium"),
+                    "Lot": st.column_config.TextColumn("Lot", width="small"),
+                    "Total": st.column_config.TextColumn("Total", width="small"),
+                    "Bukti": st.column_config.TextColumn("Bukti", width="small"),
+                    "Link": st.column_config.LinkColumn("Link", display_text="Buka 📄", width="small"),
+                    "Bayar": st.column_config.CheckboxColumn("Bayar", width="small", default=False),
+                },
+                key=f"editor_{key_prefix}_{category_filter}_{proof_status_filter}",
+            )
 
-                                pieces = []
-                                if proof_url:
-                                    pieces.append(f"[📄 Bukti]({proof_url})")
-                                    if folder_url:
-                                        pieces.append(f"[📁 Folder]({folder_url})")
-                                else:
-                                    pieces.append("_Belum upload_")
-                                st.markdown(" &nbsp;·&nbsp; ".join(pieces), unsafe_allow_html=True)
-
-                                lots = []
-                                if parking_lot:
-                                    lots.append(f"🅿️ {parking_lot}")
-                                if fnb_lot:
-                                    lots.append(f"🍽️ {fnb_lot}")
-                                if arts_lot:
-                                    lots.append(f"🎨 {arts_lot}")
-                                if lots:
-                                    st.caption(" ".join(lots))
-
-                            with action_col:
-                                st.markdown(
-                                    f"<div style='text-align:right; font-weight:600; color:#78350f; margin-bottom:0.4rem;'>"
-                                    f"{format_rm(v_total)}"
-                                    f"</div>",
-                                    unsafe_allow_html=True,
-                                )
-                                new_val = st.checkbox(
-                                    "Sudah Bayar",
-                                    value=bool(row["Paid"]),
-                                    key=f"paid_{key_prefix}_{plate}",
-                                )
-                                new_paid_status[plate] = new_val
-
-                save_clicked = st.form_submit_button(
-                    f"💾 Simpan Status Bayaran — {title}",
-                    type="primary",
-                    use_container_width=True,
-                )
-
-            if save_clicked:
+            st.markdown("")
+            if st.button(f"💾 Simpan Perubahan — {title}", type="primary", key=f"save_{key_prefix}"):
                 with st.spinner("Menyimpan..."):
                     changed = 0
-                    for plate, is_paid in new_paid_status.items():
-                        old_val = bool(df.loc[df[COL_PLATE] == plate, "Paid"].iloc[0])
-                        if old_val != is_paid:
-                            df.loc[df[COL_PLATE] == plate, "Paid"] = is_paid
+                    for _, r in edited.iterrows():
+                        plate = r["Plate"]
+                        new_paid = bool(r["Bayar"])
+                        old_paid = bool(df.loc[df[COL_PLATE] == plate, "Paid"].iloc[0])
+                        if new_paid != old_paid:
+                            df.loc[df[COL_PLATE] == plate, "Paid"] = new_paid
                             changed += 1
                             log_action(
                                 conn, ADMIN_NAME,
-                                "PAID" if is_paid else "UNPAID",
+                                "PAID" if new_paid else "UNPAID",
                                 plate,
-                                f"{'Tanda' if is_paid else 'Buang tanda'} bayaran ({title})",
+                                f"{'Tanda' if new_paid else 'Buang tanda'} bayaran ({title})",
                             )
 
                     if changed > 0:
                         safe_update(conn, df)
                         st.toast(f"✅ {changed} rekod {title} dikemaskini", icon="💾")
+                        st.rerun()
                     else:
                         st.toast("Tiada perubahan", icon="ℹ️")
-                    st.rerun()
 
             st.markdown("")
 
