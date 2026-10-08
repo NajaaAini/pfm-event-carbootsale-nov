@@ -808,19 +808,31 @@ if show_section("3️⃣ Permohonan Menunggu"):
     if pending_df.empty:
         st.info("Tiada permohonan yang menunggu.")
     else:
-        f_col1, f_col2, f_col3 = st.columns([2, 3, 2])
+        # ============================================================
+        # FILTER ROW — label sama tinggi, caption align
+        # ============================================================
+        f_col1, f_col2, f_col3 = st.columns([2, 3, 1])
+
         with f_col1:
             type_options = ["Semua", "Car Boot Sales", "F&B", "Arts & Crafts / Toys"]
             type_filter = st.selectbox("Kategori", options=type_options, key="pending_type_filter")
+
         with f_col2:
             search_query = st.text_input(
                 "Cari",
                 placeholder="No. Plate / Nama / Telefon",
                 key="pending_search",
-                label_visibility="collapsed",
             ).strip()
+
         with f_col3:
-            st.caption(f"**{len(pending_df)}** permohonan menunggu")
+            # Spacer supaya caption align dengan baseline input
+            st.markdown(
+                "<div style='height: 1.85rem;'></div>"
+                f"<div style='font-size: 0.85rem; color: #78716c; text-align: right;'>"
+                f"<b>{len(pending_df)}</b> permohonan"
+                f"</div>",
+                unsafe_allow_html=True,
+            )
 
         filtered = pending_df.copy()
         if type_filter != "Semua":
