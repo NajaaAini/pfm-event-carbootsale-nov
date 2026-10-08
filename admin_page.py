@@ -1041,7 +1041,8 @@ if show_all:
     )
 
     # Buang kolum tak perlu
-   "Media Sosial Perniagaan (Jika Ada)",
+    drop_exact = {
+        "Media Sosial Perniagaan (Jika Ada)",
         "Senarai Produk yang Dijual\nListkan:\n1. baju\n2. seluar",
         "Notes",
         "TOTAL PRICE",
