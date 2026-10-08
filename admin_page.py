@@ -48,6 +48,7 @@ VALID_STATUSES = ["Pending", "Approved", "Rejected", "Cancelled"]
 
 CAT_CARBOOT = "Car Boot Sales"
 CAT_FB = "F&B"
+CAT_ARTS = "Arts & Crafts / Toys"   # >>> TAMBAH
 
 
 # ============================================================
@@ -197,12 +198,19 @@ df["Notes"] = df["Notes"].astype("object").fillna("").astype(str)
 payments_df = load_sheet_safe(conn, "Payments", ttl=60)
 if payments_df is None or payments_df.empty:
     payments_df = pd.DataFrame(
-        columns=["Timestamp", "Plate Number", PROOF_COL, "FolderUrl",
-                 "Pilih parking lot", "Pilih F&B Lot"]
+        columns=[
+            "Timestamp", "Plate Number", PROOF_COL, "FolderUrl",
+            "Pilih parking lot", "Pilih F&B Lot",
+            "Pilih Arts & Crafts / Toys Lot",   # >>> TAMBAH
+        ]
     )
 
-for col in ["Timestamp", "Plate Number", PROOF_COL, "FolderUrl",
-            "Pilih parking lot", "Pilih F&B Lot"]:
+# >>> TAMBAH "Pilih Arts & Crafts / Toys Lot" dalam senarai kolum wajib
+for col in [
+    "Timestamp", "Plate Number", PROOF_COL, "FolderUrl",
+    "Pilih parking lot", "Pilih F&B Lot",
+    "Pilih Arts & Crafts / Toys Lot",
+]:
     if col not in payments_df.columns:
         payments_df[col] = ""
 
@@ -243,6 +251,7 @@ def get_vendor_payment_info(plate):
             "timestamp": "",
             "parking_lot": "",
             "fnb_lot": "",
+            "arts_lot": "",   # >>> TAMBAH
         }
 
     try:
@@ -257,6 +266,14 @@ def get_vendor_payment_info(plate):
     col_ts      = _pick_col(payments_df, "Timestamp", "Tarikh")
     col_parking = _pick_col(payments_df, "Pilih parking lot", "Parking Lot", "Parking")
     col_fnb     = _pick_col(payments_df, "Pilih F&B Lot", "F&B Lot", "FNB Lot", "F&B")
+    # >>> TAMBAH: cari kolum Arts & Crafts lot
+    col_arts    = _pick_col(
+        payments_df,
+        "Pilih Arts & Crafts / Toys Lot",
+        "Arts & Crafts / Toys Lot",
+        "Arts & Crafts Lot",
+        "Arts Lot",
+    )
 
     def _get(col):
         if col is None:
@@ -269,6 +286,7 @@ def get_vendor_payment_info(plate):
         "timestamp":   _get(col_ts),
         "parking_lot": _get(col_parking),
         "fnb_lot":     _get(col_fnb),
+        "arts_lot":    _get(col_arts),   # >>> TAMBAH
     }
 
 
@@ -868,6 +886,7 @@ if show_section("4️⃣ Rekod Bayaran"):
                     folder_url  = info["folder_url"]
                     parking_lot = info["parking_lot"]
                     fnb_lot     = info["fnb_lot"]
+                    arts_lot    = info["arts_lot"]   # >>> TAMBAH
 
                     v_t = str(row.get(COL_TYPE, "")).strip()
                     v_total = get_vendor_total(v_t, row.get(COL_ADDON, ""))
@@ -897,6 +916,8 @@ if show_section("4️⃣ Rekod Bayaran"):
                             st.caption(f"🅿️ Parking: **{parking_lot}**")
                         if fnb_lot:
                             st.caption(f"🍽️ F&B Lot: **{fnb_lot}**")
+                        if arts_lot:   # >>> TAMBAH
+                            st.caption(f"🎨 Arts Lot: **{arts_lot}**")
 
                     with cols[2]:
                         st.markdown(f"**{format_rm(v_total)}**")
@@ -1027,12 +1048,16 @@ if show_all:
     # ============================================================
     display_df = filtered_all.copy()
 
-    # Tambah Parking Lot, F&B Lot dari Sheet Payments
+    # Tambah Parking Lot, F&B Lot, Arts & Crafts Lot dari Sheet Payments
     display_df["Parking Lot"] = display_df[COL_PLATE].apply(
         lambda p: get_vendor_payment_info(p)["parking_lot"] or "-"
     )
     display_df["F&B Lot"] = display_df[COL_PLATE].apply(
         lambda p: get_vendor_payment_info(p)["fnb_lot"] or "-"
+    )
+    # >>> TAMBAH
+    display_df["Arts & Crafts Lot"] = display_df[COL_PLATE].apply(
+        lambda p: get_vendor_payment_info(p)["arts_lot"] or "-"
     )
 
     # Tambah Total Price
@@ -1074,7 +1099,7 @@ if show_all:
 
     # Susun semula kolum penting di depan
     priority_cols = [COL_PLATE, COL_NAME, COL_PHONE, COL_TYPE, COL_CAT,
-                     "Parking Lot", "F&B Lot", "Total Price"]
+                     "Parking Lot", "F&B Lot", "Arts & Crafts Lot", "Total Price"]
     ordered_cols = [c for c in priority_cols if c in display_df.columns] + \
                    [c for c in display_df.columns if c not in priority_cols]
     display_df = display_df[ordered_cols]
