@@ -1030,8 +1030,6 @@ if submitted and query:
 
                     st.markdown(
                         """
-                        Anda diminta untuk **setup sebelum 4 petang**.
-
                         📌 Jangan lupa untuk **join WhatsApp Group Vendor**
                         bagi mendapatkan maklumat terkini tentang event,
                         susun atur booth, parking lot dan update penting.
