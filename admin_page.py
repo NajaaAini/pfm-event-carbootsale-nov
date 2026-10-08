@@ -710,7 +710,7 @@ if show_section("1️⃣ Dashboard"):
         st.caption("**F&B**")
         st.progress(min(fb_committed / FB_OVERALL_LIMIT, 1.0), text=f"{fb_committed}/{FB_OVERALL_LIMIT}")
     with pc3:
-        st.caption("**Others**")
+        st.caption("**Crafts & Others**")
         st.progress(min(ot_committed / OTHERS_LIMIT, 1.0), text=f"{ot_committed}/{OTHERS_LIMIT}")
     with pc4:
         st.caption("**Total**")
