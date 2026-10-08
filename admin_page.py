@@ -10,7 +10,7 @@ st.set_page_config(page_title="Admin Panel", layout="wide", initial_sidebar_stat
 apply_style()
 
 # ============================================================
-# CUSTOM CSS — Professional Dashboard Look
+# CUSTOM CSS
 # ============================================================
 st.markdown("""
 <style>
@@ -62,52 +62,17 @@ st.markdown("""
         margin: 0 0 1.25rem 0;
     }
 
-    .vendor-card {
-        background: var(--bg-card);
-        border: 1px solid var(--border);
-        border-radius: 10px;
-        padding: 0.9rem 1.1rem;
-        margin-bottom: 0.5rem;
-        transition: border-color 0.15s ease;
+    .product-box {
+        background: #fafaf9;
+        border-left: 3px solid #78350f;
+        border-radius: 6px;
+        padding: 0.6rem 0.85rem;
+        margin: 0.5rem 0 0.6rem 0;
+        font-size: 0.85rem;
+        color: #44403c;
+        white-space: pre-wrap;
+        line-height: 1.45;
     }
-    .vendor-card:hover {
-        border-color: #d6d3d1;
-    }
-    .vendor-plate {
-        font-family: "SF Mono", Menlo, monospace;
-        font-size: 0.72rem;
-        color: var(--muted);
-        letter-spacing: 0.03em;
-    }
-    .vendor-name {
-        font-size: 0.95rem;
-        font-weight: 600;
-        color: var(--text);
-        margin: 0.1rem 0;
-    }
-    .vendor-meta {
-        font-size: 0.78rem;
-        color: var(--muted);
-    }
-    .vendor-total {
-        font-size: 0.95rem;
-        font-weight: 600;
-        color: var(--brand);
-    }
-
-    .pill {
-        display: inline-block;
-        padding: 0.15rem 0.55rem;
-        border-radius: 999px;
-        font-size: 0.7rem;
-        font-weight: 500;
-        background: var(--brand-soft);
-        color: var(--brand);
-        margin-right: 0.3rem;
-    }
-    .pill-green { background: #dcfce7; color: #166534; }
-    .pill-amber { background: #fef3c7; color: #92400e; }
-    .pill-gray  { background: #f5f5f4; color: #57534e; }
 
     .stButton > button {
         border-radius: 8px !important;
@@ -173,6 +138,7 @@ COL_TYPE = "Kategori Produk/Product Category"
 COL_CAT = "F&B CATEGORY"
 COL_PLATE = "Plate Number"
 COL_ADDON = "ADD ON"
+COL_PRODUCTS = "Senarai Produk yang Dijual"
 
 PROOF_COL = "Upload Bukti Bayaran"
 
@@ -188,7 +154,6 @@ CAT_ARTS = "Arts/Crafts & Others"
 # HELPER
 # ============================================================
 def normalize_type(raw):
-    """Kekal string asal, tapi alias variant lama ke canonical baru."""
     if raw is None or pd.isna(raw):
         return ""
     s = str(raw).strip()
@@ -249,6 +214,23 @@ def clean_cat_str(raw):
     if s.lower() in ("nan", "none", "nat", "null"):
         return ""
     return s
+
+
+def clean_products_str(raw):
+    if raw is None or pd.isna(raw):
+        return ""
+    s = str(raw).strip()
+    if s.lower() in ("nan", "none", "nat", "null"):
+        return ""
+    return s
+
+
+def _get_products_col(df_):
+    """Cari kolum senarai produk — tahan line-break & variasi nama."""
+    for c in df_.columns:
+        if "Senarai Produk yang Dijual" in str(c):
+            return c
+    return None
 
 
 def _normalize_type(v):
@@ -801,7 +783,7 @@ if show_section("2️⃣ Tarikh Akhir Bayaran"):
 
 
 # ============================================================
-# SECTION 3 — PERMOHONAN MENUNGGU (kotak/card view)
+# SECTION 3 — PERMOHONAN MENUNGGU
 # ============================================================
 if show_section("3️⃣ Permohonan Menunggu"):
     st.markdown('<div class="section-title">3️⃣ Permohonan Menunggu</div>', unsafe_allow_html=True)
@@ -842,6 +824,7 @@ if show_section("3️⃣ Permohonan Menunggu"):
         """, unsafe_allow_html=True)
 
     pending_df = df[df["Status"] == "Pending"]
+    products_col = _get_products_col(df)
 
     if pending_df.empty:
         st.info("Tiada permohonan yang menunggu.")
@@ -882,7 +865,7 @@ if show_section("3️⃣ Permohonan Menunggu"):
         if filtered.empty:
             st.warning("Tiada permohonan sepadan dengan tapisan anda.")
         else:
-            list_height = min(max(len(filtered) * 210, 260), 700)
+            list_height = min(max(len(filtered) * 260, 260), 900)
 
             with st.container(height=list_height, border=False):
                 for idx, (_, row) in enumerate(filtered.iterrows()):
@@ -908,6 +891,19 @@ if show_section("3️⃣ Permohonan Menunggu"):
                             unsafe_allow_html=True,
                         )
 
+                        # === SENARAI PRODUK (sentiasa nampak) ===
+                        products_text = clean_products_str(row.get(products_col, "")) if products_col else ""
+                        if products_text:
+                            st.markdown(
+                                f"<div style='font-size:0.8rem; font-weight:600; color:#78350f; "
+                                f"text-transform:uppercase; letter-spacing:0.5px; margin:0.35rem 0 0.25rem 0;'>"
+                                f"🛍️ Senarai Produk</div>"
+                                f"<div class='product-box'>{products_text}</div>",
+                                unsafe_allow_html=True,
+                            )
+                        else:
+                            st.caption("🛍️ _(Tiada senarai produk diisi)_")
+
                         v_total = get_vendor_total(v_type, row.get(COL_ADDON, ""))
                         st.caption(f"💰 Total: {format_rm(v_total)}")
 
@@ -927,7 +923,7 @@ if show_section("3️⃣ Permohonan Menunggu"):
 
 
 # ============================================================
-# SECTION 4 — REKOD BAYARAN (satu table + filter)
+# SECTION 4 — REKOD BAYARAN
 # ============================================================
 if show_section("4️⃣ Rekod Bayaran"):
     st.markdown('<div class="section-title">4️⃣ Rekod Bayaran</div>', unsafe_allow_html=True)
@@ -952,9 +948,6 @@ if show_section("4️⃣ Rekod Bayaran"):
 
         st.markdown("---")
 
-        # ============================================================
-        # FILTER ROW
-        # ============================================================
         f1, f2, f3 = st.columns([1, 1, 1])
 
         with f1:
@@ -976,9 +969,6 @@ if show_section("4️⃣ Rekod Bayaran"):
                 key="pay_filter_proof",
             )
 
-        # ============================================================
-        # BINA SATU TABLE
-        # ============================================================
         display_rows = []
         for _, row in approved_df.iterrows():
             plate = row[COL_PLATE]
@@ -1020,7 +1010,6 @@ if show_section("4️⃣ Rekod Bayaran"):
 
         table_df = pd.DataFrame(display_rows)
 
-        # Apply filters
         if category_filter != "Semua":
             table_df = table_df[table_df["Kategori"] == category_filter]
         if paid_filter == "✅ Sudah Bayar":
@@ -1146,9 +1135,6 @@ if show_all:
 
     display_df = filtered_all.copy()
 
-    # ============================================================
-    # TAMBAH KOLUM LOT — SEMUA 4 KATEGORI
-    # ============================================================
     display_df["Parking Lot"] = display_df[COL_PLATE].apply(
         lambda p: get_vendor_payment_info(p)["parking_lot"] or "-")
     display_df["F&B Lot"] = display_df[COL_PLATE].apply(
@@ -1163,12 +1149,10 @@ if show_all:
 
     drop_exact = {
         "Media Sosial Perniagaan (Jika Ada)",
-        "Senarai Produk yang Dijual\nListkan:\n1. baju\n2. seluar",
         "Notes", "TOTAL PRICE", "Jenis Model Kenderaan", "Email address",
     }
     drop_contains = [
         "Media Sosial Perniagaan",
-        "Senarai Produk yang Dijual\nListkan",
         "Jenis Model Kenderaan",
         "Email address",
     ]
