@@ -831,7 +831,7 @@ if submitted and query:
                     st.markdown(
                         "Tahniah! Permohonan anda telah "
                         "diluluskan. Sila buat bayaran "
-                        "dan konfirmasi slot anda."
+                        "dan pilih slot anda."
                     )
 
 
