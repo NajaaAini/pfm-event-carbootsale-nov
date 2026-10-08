@@ -112,11 +112,19 @@ def format_phone_display(raw):
 # ============================================================
 # HELPER — HARGA
 # ============================================================
+def _normalize_type(v):
+    """Buang spasi berlebihan & samakan case supaya match konsisten."""
+    if v is None or pd.isna(v):
+        return ""
+    return str(v).strip().lower()
+
+
 def get_category_price(vendor_type):
+    vt = _normalize_type(vendor_type)
     try:
-        if vendor_type == "Car Boot Sales":
+        if vt == "car boot sales":
             return float(st.secrets["event"]["price_car_boot"])
-        elif vendor_type == "F&B":
+        elif vt == "f&b":
             return float(st.secrets["event"]["price_fb"])
         else:
             return float(st.secrets["event"]["price_others"])
@@ -126,10 +134,11 @@ def get_category_price(vendor_type):
 
 def get_deposit(vendor_type):
     """Deposit refundable — F&B + Others."""
+    vt = _normalize_type(vendor_type)
     try:
-        if vendor_type == "F&B":
+        if vt == "f&b":
             return float(st.secrets["event"]["deposit_fb"])
-        elif vendor_type == "Arts & Crafts / Toys":
+        elif vt == "arts & crafts / toys":
             return float(st.secrets["event"].get("deposit_others", 100))
         return 0.0
     except Exception:
@@ -244,7 +253,6 @@ def get_vendor_payment_info(plate):
 
     latest = matched.iloc[0]
 
-    # Cari nama kolum sebenar dalam Sheet Payments
     col_proof   = _pick_col(payments_df, PROOF_COL, "Upload Bukti Bayaran", "Bukti Bayaran")
     col_folder  = _pick_col(payments_df, "FolderUrl", "Folder URL")
     col_ts      = _pick_col(payments_df, "Timestamp", "Tarikh")
@@ -265,7 +273,6 @@ def get_vendor_payment_info(plate):
     }
 
 
-# Backward-compat
 def get_vendor_proof(plate):
     info = get_vendor_payment_info(plate)
     return info["proof_url"], info["folder_url"], info["timestamp"]
@@ -539,9 +546,11 @@ if wa_group:
 # ============================================================
 if show_section("1️⃣ Dashboard"):
     st.markdown("## 1️⃣ Dashboard")
-        with st.expander("🔍 DEBUG — Total Price Breakdown", expanded=False):
+
+    # ---------- DEBUG (sementara — buang bila dah ok) ----------
+    with st.expander("🔍 DEBUG — Total Price Breakdown", expanded=False):
         st.write("**Secrets `event`:**", dict(st.secrets["event"]))
-    
+
         test_row = df.iloc[0] if not df.empty else None
         if test_row is not None:
             v_type = test_row.get(COL_TYPE, "")
@@ -553,7 +562,7 @@ if show_section("1️⃣ Dashboard"):
             st.write("**Deposit:**", get_deposit(v_type))
             st.write("**Addon price:**", get_addon_price(v_addon))
             st.write("**TOTAL:**", get_vendor_total(v_type, v_addon))
-            
+    # ---------- END DEBUG ----------
 
     cb_approved = count_approved(**{COL_TYPE: CAT_CARBOOT})
     fb_approved = count_approved(**{COL_TYPE: CAT_FB})
@@ -824,7 +833,6 @@ if show_section("4️⃣ Rekod Bayaran"):
     if approved_df.empty:
         st.info("Belum ada vendor yang diluluskan.")
     else:
-        # ---------- Ringkasan atas ----------
         total_paid = int(approved_df["Paid"].sum())
         total_unpaid = len(approved_df) - total_paid
 
@@ -835,7 +843,6 @@ if show_section("4️⃣ Rekod Bayaran"):
 
         st.markdown("---")
 
-        # ---------- Filter bukti (global) ----------
         payment_filter = st.selectbox(
             "Filter Bukti",
             options=["Semua", "Belum Upload Bukti", "Sudah Upload Bukti"],
@@ -849,12 +856,10 @@ if show_section("4️⃣ Rekod Bayaran"):
                 return d[d[COL_PLATE].apply(lambda p: bool(get_vendor_payment_info(p)["proof_url"]))]
             return d
 
-        # ---------- Pecahan kategori ----------
         fb_df_approved = approved_df[approved_df[COL_TYPE] == CAT_FB]
         cb_df_approved = approved_df[approved_df[COL_TYPE] == CAT_CARBOOT]
         ot_df_approved = approved_df[~approved_df[COL_TYPE].isin([CAT_CARBOOT, CAT_FB])]
 
-        # ---------- Fungsi render satu kategori ----------
         def render_payment_section(title, icon, section_df, key_prefix):
             st.markdown(f"### {icon} {title}")
 
@@ -888,7 +893,6 @@ if show_section("4️⃣ Rekod Bayaran"):
 
                     cols = st.columns([3, 2, 1, 1])
 
-                    # --- Kolum 0: nama + plate ---
                     with cols[0]:
                         status_icon = "✅" if proof_url else "⬜"
                         sub = str(row.get(COL_CAT, "")).strip()
@@ -900,7 +904,6 @@ if show_section("4️⃣ Rekod Bayaran"):
                             unsafe_allow_html=True,
                         )
 
-                    # --- Kolum 1: bukti + lot ---
                     with cols[1]:
                         if proof_url:
                             st.markdown(f"[📄 Bukti]({proof_url})")
@@ -914,11 +917,9 @@ if show_section("4️⃣ Rekod Bayaran"):
                         if fnb_lot:
                             st.caption(f"🍽️ F&B Lot: **{fnb_lot}**")
 
-                    # --- Kolum 2: total ---
                     with cols[2]:
                         st.markdown(f"**{format_rm(v_total)}**")
 
-                    # --- Kolum 3: checkbox ---
                     with cols[3]:
                         new_val = st.checkbox(
                             "Sudah Bayar",
@@ -962,7 +963,6 @@ if show_section("4️⃣ Rekod Bayaran"):
 
             st.markdown("")
 
-        # ---------- Render 3 section ----------
         render_payment_section("F&B", "🍽️", fb_df_approved, "fb")
         st.divider()
 
@@ -1070,8 +1070,6 @@ if show_all:
 
     # ============================================================
     # BINA CSV KHAS UNTUK DOWNLOAD
-    # - Buang kolum tak perlu
-    # - Tambah Parking Lot & F&B Lot dari Sheet Payments
     # ============================================================
     drop_exact = {
         "Media Sosial Perniagaan (Jika Ada)",
@@ -1095,7 +1093,6 @@ if show_all:
 
     csv_df = filtered_all.copy()
 
-    # Tambah Parking Lot & F&B Lot ikut plate
     csv_df["Parking Lot"] = csv_df[COL_PLATE].apply(
         lambda p: get_vendor_payment_info(p)["parking_lot"]
     )
@@ -1103,10 +1100,8 @@ if show_all:
         lambda p: get_vendor_payment_info(p)["fnb_lot"]
     )
 
-    # Buang kolum tak perlu
     csv_df = csv_df[[c for c in csv_df.columns if not _should_drop(c)]]
 
-    # Format phone supaya cantik dalam CSV
     if COL_PHONE in csv_df.columns:
         csv_df[COL_PHONE] = csv_df[COL_PHONE].apply(format_phone_display)
 
