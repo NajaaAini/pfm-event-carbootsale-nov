@@ -84,6 +84,11 @@ def get_category_price(vendor_type):
                 st.secrets["event"]["price_fb"]
             )
 
+        elif vendor_type == "Food Truck":
+            return float(
+                st.secrets["event"]["price_ft"]
+            )
+
         else:
             return float(
                 st.secrets["event"]["price_others"]
@@ -100,6 +105,7 @@ def get_deposit(vendor_type):
     """
     Deposit refundable:
     - F&B
+    - Food Truck
     - Arts/Crafts & Others
     """
 
@@ -109,6 +115,12 @@ def get_deposit(vendor_type):
 
             return float(
                 st.secrets["event"]["deposit_fb"]
+            )
+
+        elif vendor_type == "Food Truck":
+
+            return float(
+                st.secrets["event"]["deposit_ft"]
             )
 
         elif vendor_type == "Arts/Crafts & Others":
@@ -243,6 +255,12 @@ def get_vendor_payment_info(
 
         "fnb_lot": _clean(
             latest.get("Pilih F&B Lot", "")
+        ),
+
+        # Food Truck kongsi lot F&B
+        "ft_lot": _clean(
+            latest.get("Pilih Food Truck Lot", "")
+            or latest.get("Pilih F&B Lot", "")
         ),
 
         # Baca kolum baru dahulu, fallback ke kolum lama
@@ -580,6 +598,13 @@ if submitted and query:
         fnb_lot = (
             payment_info.get(
                 "fnb_lot",
+                ""
+            )
+        )
+
+        ft_lot = (
+            payment_info.get(
+                "ft_lot",
                 ""
             )
         )
@@ -928,11 +953,13 @@ if submitted and query:
                 # Termasuk:
                 # - Car Boot Sales (parking lot)
                 # - F&B (F&B lot)
+                # - Food Truck (Food Truck / F&B lot)
                 # - Arts/Crafts & Others (arts lot)
                 # ==============================================
                 if (
                     parking_lot
                     or fnb_lot
+                    or ft_lot
                     or arts_lot
                 ):
 
@@ -981,6 +1008,27 @@ if submitted and query:
                                 ">
                                     <b>🍴 F&B Lot:</b>
                                     {fnb_lot}
+                                </div>
+                                """,
+                                unsafe_allow_html=True
+                            )
+
+
+                        # --------------------------------------
+                        # FOOD TRUCK LOT
+                        # --------------------------------------
+                        if ft_lot and ft_lot != fnb_lot:
+
+                            st.markdown(
+                                f"""
+                                <div style="
+                                    background-color: #f7f3ee;
+                                    border-radius: 10px;
+                                    padding: 14px 16px;
+                                    margin-bottom: 10px;
+                                ">
+                                    <b>🚚 Food Truck Lot:</b>
+                                    {ft_lot}
                                 </div>
                                 """,
                                 unsafe_allow_html=True
