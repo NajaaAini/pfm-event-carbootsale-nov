@@ -74,6 +74,18 @@ st.markdown("""
         line-height: 1.45;
     }
 
+    .remark-box {
+        background: #fef3c7;
+        border-left: 3px solid #92400e;
+        border-radius: 6px;
+        padding: 0.6rem 0.85rem;
+        margin: 0.5rem 0 0.6rem 0;
+        font-size: 0.85rem;
+        color: #44403c;
+        white-space: pre-wrap;
+        line-height: 1.45;
+    }
+
     .stButton > button {
         border-radius: 8px !important;
         font-weight: 500 !important;
@@ -139,6 +151,7 @@ COL_CAT = "F&B CATEGORY"
 COL_PLATE = "Plate Number"
 COL_ADDON = "ADD ON"
 COL_PRODUCTS = "Senarai Produk yang Dijual"
+COL_REMARK = "Remark"
 
 PROOF_COL = "Upload Bukti Bayaran"
 
@@ -225,8 +238,16 @@ def clean_products_str(raw):
     return s
 
 
+def clean_text(raw):
+    if raw is None or pd.isna(raw):
+        return ""
+    s = str(raw).strip()
+    if s.lower() in ("nan", "none", "nat", "null"):
+        return ""
+    return s
+
+
 def _get_products_col(df_):
-    """Cari kolum senarai produk — tahan line-break & variasi nama."""
     for c in df_.columns:
         if "Senarai Produk yang Dijual" in str(c):
             return c
@@ -413,7 +434,7 @@ def get_vendor_payment_info(plate):
 
 
 # ============================================================
-# FUNGSI BANTUAN — kiraan kuota
+# FUNGSI BANTUAN
 # ============================================================
 def count_approved(**filters):
     mask = pd.Series(True, index=df.index)
@@ -491,11 +512,37 @@ def show_section(label):
 def confirm_approve_dialog(plate, vendor_name):
     st.write("Anda akan **meluluskan** permohonan ini:")
     st.markdown(f"**No. Plate:** `{plate}`  \n**Nama:** {vendor_name}")
+
+    vendor_row = df[df[COL_PLATE] == plate]
+    if not vendor_row.empty:
+        vendor_remark = clean_text(vendor_row.iloc[0].get(COL_REMARK, ""))
+        if vendor_remark:
+            st.markdown("**📝 Remark Vendor:**")
+            st.markdown(
+                f"<div class='remark-box'>{vendor_remark}</div>",
+                unsafe_allow_html=True,
+            )
+
+    existing_row = df[df[COL_PLATE] == plate]
+    existing_note = ""
+    if not existing_row.empty:
+        existing_val = existing_row.iloc[0].get("Notes", "")
+        if pd.notna(existing_val) and str(existing_val).strip():
+            existing_note = str(existing_val).strip()
+
+    admin_note = st.text_area(
+        "Nota Admin (vendor akan nampak — optional)",
+        value=existing_note,
+        placeholder="Contoh: Sila bawa salinan resit semasa event.",
+        height=120,
+        key=f"approve_note_{plate}",
+    )
+
     col1, col2 = st.columns(2)
     with col1:
         if st.button("Ya, Luluskan", type="primary", use_container_width=True, key="dlg_approve_yes"):
             df.loc[df[COL_PLATE] == plate, "Status"] = "Approved"
-            df.loc[df[COL_PLATE] == plate, "Notes"] = ""
+            df.loc[df[COL_PLATE] == plate, "Notes"] = admin_note.strip()
             safe_update(conn, df)
             log_action(conn, ADMIN_NAME, "APPROVE", plate, f"Lulus: {vendor_name}")
             st.toast(f"✅ {plate} telah diluluskan", icon="✅")
@@ -587,6 +634,13 @@ def edit_vendor_dialog(plate):
 
     new_plate = st.text_input("No. Plate", value=str(vendor.get(COL_PLATE, "")), key="edit_plate")
 
+    new_addon = st.text_input(
+        "ADD ON",
+        value=str(vendor.get(COL_ADDON, "") or ""),
+        help="Contoh: Meja (Fee: RM 20), Kerusi (Fee: RM 5)",
+        key="edit_addon",
+    )
+
     col1, col2 = st.columns(2)
     with col1:
         if st.button("Simpan", type="primary", use_container_width=True, key="edit_save"):
@@ -596,6 +650,7 @@ def edit_vendor_dialog(plate):
             df.at[idx, COL_TYPE] = new_type
             df.at[idx, COL_CAT] = new_cat
             df.at[idx, COL_PLATE] = new_plate
+            df.at[idx, COL_ADDON] = new_addon
             safe_update(conn, df)
             log_action(conn, ADMIN_NAME, "EDIT", plate, f"Nama: {new_name}, Plate: {new_plate}")
             st.toast(f"✅ {plate} telah dikemaskini", icon="✅")
@@ -605,12 +660,8 @@ def edit_vendor_dialog(plate):
             st.rerun()
 
 
-# ============================================================
-# DIALOG PADAM — guna INDEX (buang 1 baris sahaja)
-# ============================================================
 @st.dialog("Sahkan Padam")
 def confirm_delete_dialog(plate, vendor_name, row_signature):
-    """Padam SATU baris sahaja berdasarkan signature unik (plate + nama + semua kolum)."""
     st.warning("Anda akan **memadam** 1 baris rekod vendor ini:")
     st.markdown(f"**No. Plate:** `{plate}`  \n**Nama:** {vendor_name}")
     st.write("")
@@ -624,8 +675,6 @@ def confirm_delete_dialog(plate, vendor_name, row_signature):
     with col1:
         if st.button("Ya, Padam", type="primary", use_container_width=True, key="dlg_delete_yes"):
             global df
-
-            # Cari index asal dalam df menggunakan signature
             matched_idx = None
             for i, r in df.iterrows():
                 sig = tuple(str(r.get(c, "")) for c in df.columns)
@@ -888,7 +937,7 @@ if show_section("3️⃣ Permohonan Menunggu"):
         if filtered.empty:
             st.warning("Tiada permohonan sepadan dengan tapisan anda.")
         else:
-            list_height = min(max(len(filtered) * 260, 260), 900)
+            list_height = min(max(len(filtered) * 300, 300), 1000)
 
             with st.container(height=list_height, border=False):
                 for idx, (_, row) in enumerate(filtered.iterrows()):
@@ -914,7 +963,6 @@ if show_section("3️⃣ Permohonan Menunggu"):
                             unsafe_allow_html=True,
                         )
 
-                        # === SENARAI PRODUK (sentiasa nampak) ===
                         products_text = clean_products_str(row.get(products_col, "")) if products_col else ""
                         if products_text:
                             st.markdown(
@@ -926,6 +974,16 @@ if show_section("3️⃣ Permohonan Menunggu"):
                             )
                         else:
                             st.caption("🛍️ _(Tiada senarai produk diisi)_")
+
+                        remark_text = clean_text(row.get(COL_REMARK, ""))
+                        if remark_text:
+                            st.markdown(
+                                f"<div style='font-size:0.8rem; font-weight:600; color:#92400e; "
+                                f"text-transform:uppercase; letter-spacing:0.5px; margin:0.35rem 0 0.25rem 0;'>"
+                                f"📝 Remark Vendor</div>"
+                                f"<div class='remark-box'>{remark_text}</div>",
+                                unsafe_allow_html=True,
+                            )
 
                         v_total = get_vendor_total(v_type, row.get(COL_ADDON, ""))
                         st.caption(f"💰 Total: {format_rm(v_total)}")
@@ -959,10 +1017,6 @@ if show_section("4️⃣ Rekod Bayaran"):
     else:
         total_paid = int(approved_df["Paid"].sum())
         total_unpaid = len(approved_df) - total_paid
-        total_with_proof = sum(
-            1 for p in approved_df[COL_PLATE]
-            if bool(get_vendor_payment_info(p)["proof_url"])
-        )
 
         mc1, mc2, mc3 = st.columns(3)
         mc1.metric("Diluluskan", len(approved_df))
@@ -971,7 +1025,7 @@ if show_section("4️⃣ Rekod Bayaran"):
 
         st.markdown("---")
 
-        f1, f2, f3 = st.columns([1, 1, 1])
+        f1, f2, f3, f4 = st.columns([1, 1, 1, 1])
 
         with f1:
             category_filter = st.selectbox(
@@ -991,6 +1045,12 @@ if show_section("4️⃣ Rekod Bayaran"):
                 options=["Semua", "📄 Ada Bukti", "⬜ Tiada Bukti"],
                 key="pay_filter_proof",
             )
+        with f4:
+            plate_search = st.text_input(
+                "🔍 Cari No. Plate",
+                placeholder="Contoh: PJL3465",
+                key="pay_filter_plate",
+            ).strip().upper()
 
         display_rows = []
         for _, row in approved_df.iterrows():
@@ -1043,6 +1103,13 @@ if show_section("4️⃣ Rekod Bayaran"):
             table_df = table_df[table_df["Bukti"] == "📄 Ada"]
         elif proof_filter == "⬜ Tiada Bukti":
             table_df = table_df[table_df["Bukti"] == "⬜ Tiada"]
+        if plate_search:
+            table_df = table_df[
+                table_df["Plate"].astype(str).str.upper().str.replace(" ", "").str.contains(
+                    plate_search.replace(" ", ""),
+                    na=False,
+                )
+            ]
 
         table_df = table_df.sort_values(["Kategori", "Plate"]).reset_index(drop=True)
 
@@ -1076,7 +1143,7 @@ if show_section("4️⃣ Rekod Bayaran"):
                     "Link": st.column_config.LinkColumn("Link", display_text="Buka 📄", width="small"),
                     "Bayar": st.column_config.CheckboxColumn("Bayar", width="small", default=False),
                 },
-                key=f"pay_editor_{category_filter}_{paid_filter}_{proof_filter}",
+                key=f"pay_editor_{category_filter}_{paid_filter}_{proof_filter}_{plate_search}",
             )
 
             st.markdown("")
@@ -1147,14 +1214,32 @@ if show_all:
     st.markdown("<div style='height: 1rem;'></div>", unsafe_allow_html=True)
     st.markdown("---")
 
-    status_options = df["Status"].dropna().unique().tolist()
-    status_filter = st.multiselect(
-        "Tapis mengikut status",
-        options=status_options,
-        default=status_options,
-        label_visibility="collapsed",
-    )
+    all_f1, all_f2 = st.columns([2, 3])
+
+    with all_f1:
+        status_options = df["Status"].dropna().unique().tolist()
+        status_filter = st.multiselect(
+            "Tapis mengikut status",
+            options=status_options,
+            default=status_options,
+            key="all_status_filter",
+        )
+    with all_f2:
+        all_search = st.text_input(
+            "🔍 Cari (Plate / Nama / Telefon)",
+            placeholder="Contoh: PJL3465 atau Cute Club",
+            key="all_search",
+        ).strip()
+
     filtered_all = df[df["Status"].isin(status_filter)]
+
+    if all_search:
+        q = all_search.lower()
+        filtered_all = filtered_all[
+            filtered_all[COL_PLATE].astype(str).str.lower().str.contains(q, na=False)
+            | filtered_all[COL_NAME].astype(str).str.lower().str.contains(q, na=False)
+            | filtered_all[COL_PHONE].astype(str).str.lower().str.contains(q, na=False)
+        ]
 
     display_df = filtered_all.copy()
 
@@ -1207,9 +1292,6 @@ if show_all:
 
     st.markdown("<div style='height: 1rem;'></div>", unsafe_allow_html=True)
 
-    # ============================================================
-    # PADAM — pilih baris guna nomor (bukan plate)
-    # ============================================================
     st.markdown("##### 🗑️ Padam 1 Baris")
     st.caption(
         "Kalau ada duplicate plate, pilih **baris tepat** untuk dipadam — "
@@ -1238,7 +1320,6 @@ if show_all:
                 plate_pick = row_pick[COL_PLATE]
                 name_pick = row_pick[COL_NAME]
 
-                # Bina signature unik (semua kolum sebagai tuple string)
                 row_signature = tuple(
                     str(row_pick.get(c, "")) for c in df.columns
                 )
