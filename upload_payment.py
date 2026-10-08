@@ -64,16 +64,20 @@ def get_category_price(vendor_type):
             return float(st.secrets["event"]["price_car_boot"])
         elif vendor_type == "F&B":
             return float(st.secrets["event"]["price_fb"])
+        elif vendor_type == "Food Truck":
+            return float(st.secrets["event"]["price_ft"])
         else:
             return float(st.secrets["event"]["price_others"])
     except Exception:
         return 0.0
 
 def get_deposit(vendor_type):
-    """Deposit refundable — F&B + Arts/Crafts & Others."""
+    """Deposit refundable — F&B + Food Truck + Arts/Crafts & Others."""
     try:
         if vendor_type == "F&B":
             return float(st.secrets["event"]["deposit_fb"])
+        elif vendor_type == "Food Truck":
+            return float(st.secrets["event"]["deposit_ft"])
         elif vendor_type == "Arts/Crafts & Others":
             return float(st.secrets["event"].get("deposit_others", 100))
         return 0.0
