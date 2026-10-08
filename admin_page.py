@@ -113,7 +113,6 @@ def format_phone_display(raw):
 # HELPER — HARGA
 # ============================================================
 def _normalize_type(v):
-    """Buang spasi berlebihan & samakan case supaya match konsisten."""
     if v is None or pd.isna(v):
         return ""
     return str(v).strip().lower()
@@ -547,23 +546,6 @@ if wa_group:
 if show_section("1️⃣ Dashboard"):
     st.markdown("## 1️⃣ Dashboard")
 
-    # ---------- DEBUG (sementara — buang bila dah ok) ----------
-    with st.expander("🔍 DEBUG — Total Price Breakdown", expanded=False):
-        st.write("**Secrets `event`:**", dict(st.secrets["event"]))
-
-        test_row = df.iloc[0] if not df.empty else None
-        if test_row is not None:
-            v_type = test_row.get(COL_TYPE, "")
-            v_addon = test_row.get(COL_ADDON, "")
-            st.write("**Sample vendor:**", test_row.get(COL_NAME, ""))
-            st.write("**Kategori (raw):**", repr(v_type))
-            st.write("**ADD ON (raw):**", repr(v_addon))
-            st.write("**Category price:**", get_category_price(v_type))
-            st.write("**Deposit:**", get_deposit(v_type))
-            st.write("**Addon price:**", get_addon_price(v_addon))
-            st.write("**TOTAL:**", get_vendor_total(v_type, v_addon))
-    # ---------- END DEBUG ----------
-
     cb_approved = count_approved(**{COL_TYPE: CAT_CARBOOT})
     fb_approved = count_approved(**{COL_TYPE: CAT_FB})
     ot_approved = others_approved()
@@ -801,8 +783,7 @@ if show_section("3️⃣ Permohonan Menunggu"):
                     )
 
                     v_total = get_vendor_total(v_type, row.get(COL_ADDON, ""))
-                    if v_total > 0:
-                        st.caption(f"💰 Total: {format_rm(v_total)}")
+                    st.caption(f"💰 Total: {format_rm(v_total)}")
 
                     b1, b2, b3, _ = st.columns([1, 1, 1, 3])
 
@@ -1041,8 +1022,59 @@ if show_all:
     )
     filtered_all = df[df["Status"].isin(status_filter)]
 
+    # ============================================================
+    # BINA DISPLAY_DF — Lot + Total Price untuk TABLE & CSV
+    # ============================================================
     display_df = filtered_all.copy()
-    display_df[COL_PHONE] = display_df[COL_PHONE].apply(format_phone_display)
+
+    # Tambah Parking Lot, F&B Lot dari Sheet Payments
+    display_df["Parking Lot"] = display_df[COL_PLATE].apply(
+        lambda p: get_vendor_payment_info(p)["parking_lot"] or "-"
+    )
+    display_df["F&B Lot"] = display_df[COL_PLATE].apply(
+        lambda p: get_vendor_payment_info(p)["fnb_lot"] or "-"
+    )
+
+    # Tambah Total Price
+    display_df["Total Price"] = display_df.apply(
+        lambda r: format_rm(get_vendor_total(r[COL_TYPE], r.get(COL_ADDON, ""))), axis=1
+    )
+
+    # Buang kolum tak perlu
+    drop_exact = {
+        "Media Sosial Perniagaan (Jika Ada)",
+        "Senarai Produk yang Dijual\nListkan:\n1. baju\n2. seluar",
+        "Notes",
+        "TOTAL PRICE",
+    }
+    drop_contains = [
+        "Media Sosial Perniagaan",
+        "Senarai Produk yang Dijual\nListkan",
+    ]
+
+    def _should_drop(col_name):
+        if col_name in drop_exact:
+            return True
+        for pat in drop_contains:
+            if pat in str(col_name):
+                return True
+        if str(col_name).strip() == "Notes":
+            return True
+        return False
+
+    display_df = display_df[[c for c in display_df.columns if not _should_drop(c)]]
+
+    # Format phone supaya cantik
+    if COL_PHONE in display_df.columns:
+        display_df[COL_PHONE] = display_df[COL_PHONE].apply(format_phone_display)
+
+    # Susun semula kolum penting di depan
+    priority_cols = [COL_PLATE, COL_NAME, COL_PHONE, COL_TYPE, COL_CAT,
+                     "Parking Lot", "F&B Lot", "Total Price"]
+    ordered_cols = [c for c in priority_cols if c in display_df.columns] + \
+                   [c for c in display_df.columns if c not in priority_cols]
+    display_df = display_df[ordered_cols]
+
     st.dataframe(display_df, hide_index=True, use_container_width=True)
 
     st.markdown("<div style='height: 1rem;'></div>", unsafe_allow_html=True)
@@ -1069,43 +1101,9 @@ if show_all:
     st.markdown("<div style='height: 0.5rem;'></div>", unsafe_allow_html=True)
 
     # ============================================================
-    # BINA CSV KHAS UNTUK DOWNLOAD
+    # CSV — guna DataFrame yang SAMA (Lot + Total dah ada)
     # ============================================================
-    drop_exact = {
-        "Media Sosial Perniagaan (Jika Ada)",
-        "Senarai Produk yang Dijual\nListkan:\n1. baju\n2. seluar",
-        "Notes",
-    }
-    drop_contains = [
-        "Media Sosial Perniagaan",
-        "Senarai Produk yang Dijual\nListkan",
-    ]
-
-    def _should_drop(col_name):
-        if col_name in drop_exact:
-            return True
-        for pat in drop_contains:
-            if pat in str(col_name):
-                return True
-        if str(col_name).strip() == "Notes":
-            return True
-        return False
-
-    csv_df = filtered_all.copy()
-
-    csv_df["Parking Lot"] = csv_df[COL_PLATE].apply(
-        lambda p: get_vendor_payment_info(p)["parking_lot"]
-    )
-    csv_df["F&B Lot"] = csv_df[COL_PLATE].apply(
-        lambda p: get_vendor_payment_info(p)["fnb_lot"]
-    )
-
-    csv_df = csv_df[[c for c in csv_df.columns if not _should_drop(c)]]
-
-    if COL_PHONE in csv_df.columns:
-        csv_df[COL_PHONE] = csv_df[COL_PHONE].apply(format_phone_display)
-
-    csv_all = csv_df.to_csv(index=False).encode("utf-8-sig")
+    csv_all = display_df.to_csv(index=False).encode("utf-8-sig")
 
     st.download_button(
         "📥 Muat Turun CSV (Semua Vendor)",
