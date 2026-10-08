@@ -156,6 +156,7 @@ ADMIN_NAME = st.session_state.get("admin_name", "Admin")
 # ============================================================
 CAR_BOOT_LIMIT = st.secrets["event"]["total_car_boot"]
 FB_OVERALL_LIMIT = st.secrets["event"]["total_fb"]
+FT_LIMIT = st.secrets["event"]["total_ft"]
 FB_CATEGORY_LIMIT = st.secrets["event"]["fb_per_category"]
 OTHERS_LIMIT = st.secrets["event"]["total_others"]
 EVENT_DATE = date.fromisoformat(st.secrets["event"]["event_date"])
@@ -179,7 +180,8 @@ VALID_STATUSES = ["Pending", "Approved", "Rejected", "Cancelled"]
 
 CAT_CARBOOT = "Car Boot Sales"
 CAT_FB = "F&B"
-CAT_ARTS = "Arts/Crafts & Others"   # ⬅️ DIUBAH dari "Arts & Crafts / Toys"
+CAT_FT = "Food Truck"
+CAT_ARTS = "Arts/Crafts & Others"
 
 
 # ============================================================
@@ -195,6 +197,8 @@ def normalize_type(raw):
     # Data lama -> canonical baru
     if s.lower() in ("arts & crafts / toys", "arts & crafts", "arts/crafts"):
         return "Arts/Crafts & Others"
+    if s.lower() in ("food truck", "foodtruck", "ft"):
+        return "Food Truck"
     return s
 
 
@@ -261,6 +265,8 @@ def get_category_price(vendor_type):
             return float(st.secrets["event"]["price_car_boot"])
         elif vt == "f&b":
             return float(st.secrets["event"]["price_fb"])
+        elif vt == "food truck":
+            return float(st.secrets["event"]["price_ft"])
         else:
             return float(st.secrets["event"]["price_others"])
     except Exception:
@@ -272,7 +278,9 @@ def get_deposit(vendor_type):
     try:
         if vt == "f&b":
             return float(st.secrets["event"]["deposit_fb"])
-        elif vt == "arts/crafts & others":   # ⬅️ DIUBAH dari "arts & crafts / toys"
+        elif vt == "food truck":
+            return float(st.secrets["event"]["deposit_ft"])
+        elif vt == "arts/crafts & others":
             return float(st.secrets["event"].get("deposit_others", 100))
         return 0.0
     except Exception:
@@ -314,7 +322,7 @@ df = load_sheet_safe(conn, "Vendors", ttl=60)
 if df is None:
     st.stop()
 
-df[COL_TYPE] = df[COL_TYPE].apply(normalize_type)   # ⬅️ TAMBAH: handle data lama
+df[COL_TYPE] = df[COL_TYPE].apply(normalize_type)
 df["Paid"] = df["Paid"].fillna(False).astype(bool)
 df["Status"] = df["Status"].apply(normalize_status)
 
@@ -393,7 +401,7 @@ def get_vendor_payment_info(plate):
     col_fnb     = _pick_col(payments_df, "Pilih F&B Lot", "F&B Lot", "FNB Lot", "F&B")
     col_arts    = _pick_col(
         payments_df,
-        "Pilih Arts/Crafts & Others Lot",   # ⬅️ TAMBAH: alias baru paling atas
+        "Pilih Arts/Crafts & Others Lot",
         "Pilih Arts & Crafts / Toys Lot",
         "Arts & Crafts / Toys Lot",
         "Arts & Crafts Lot",
@@ -435,13 +443,13 @@ def count_pending(**filters):
 
 
 def others_approved():
-    mask = ~df[COL_TYPE].isin([CAT_CARBOOT, CAT_FB])
+    mask = ~df[COL_TYPE].isin([CAT_CARBOOT, CAT_FB, CAT_FT])
     mask &= (df["Status"] == "Approved")
     return df[mask].shape[0]
 
 
 def others_pending():
-    mask = ~df[COL_TYPE].isin([CAT_CARBOOT, CAT_FB])
+    mask = ~df[COL_TYPE].isin([CAT_CARBOOT, CAT_FB, CAT_FT])
     mask &= (df["Status"] == "Pending")
     return df[mask].shape[0]
 
@@ -576,7 +584,7 @@ def edit_vendor_dialog(plate):
         key="edit_phone",
     )
 
-    type_options = ["Car Boot Sales", "F&B", "Arts/Crafts & Others"]   # ⬅️ DIUBAH
+    type_options = ["Car Boot Sales", "F&B", "Food Truck", "Arts/Crafts & Others"]
     current_type = str(vendor.get(COL_TYPE, "Car Boot Sales"))
     type_index = type_options.index(current_type) if current_type in type_options else 0
     new_type = st.selectbox("Kategori Produk", options=type_options, index=type_index, key="edit_type")
@@ -676,33 +684,38 @@ if show_section("1️⃣ Dashboard"):
 
     cb_approved = count_approved(**{COL_TYPE: CAT_CARBOOT})
     fb_approved = count_approved(**{COL_TYPE: CAT_FB})
+    ft_approved = count_approved(**{COL_TYPE: CAT_FT})
     ot_approved = others_approved()
 
     cb_pending = count_pending(**{COL_TYPE: CAT_CARBOOT})
     fb_pending = count_pending(**{COL_TYPE: CAT_FB})
+    ft_pending = count_pending(**{COL_TYPE: CAT_FT})
     ot_pending = others_pending()
 
-    total_approved = cb_approved + fb_approved + ot_approved
-    total_pending = cb_pending + fb_pending + ot_pending
-    total_limit = CAR_BOOT_LIMIT + FB_OVERALL_LIMIT + OTHERS_LIMIT
+    total_approved = cb_approved + fb_approved + ft_approved + ot_approved
+    total_pending = cb_pending + fb_pending + ft_pending + ot_pending
+    total_limit = CAR_BOOT_LIMIT + FB_OVERALL_LIMIT + FT_LIMIT + OTHERS_LIMIT
 
-    c1, c2, c3, c4 = st.columns(4)
+    c1, c2, c3, c4, c5 = st.columns(5)
     c1.metric("Car Boot", f"{cb_approved} / {CAR_BOOT_LIMIT}",
               f"⏳ {cb_pending} pending" if cb_pending else None, delta_color="off")
     c2.metric("F&B", f"{fb_approved} / {FB_OVERALL_LIMIT}",
               f"⏳ {fb_pending} pending" if fb_pending else None, delta_color="off")
-    c3.metric("Others", f"{ot_approved} / {OTHERS_LIMIT}",
+    c3.metric("Food Truck", f"{ft_approved} / {FT_LIMIT}",
+              f"⏳ {ft_pending} pending" if ft_pending else None, delta_color="off")
+    c4.metric("Others", f"{ot_approved} / {OTHERS_LIMIT}",
               f"⏳ {ot_pending} pending" if ot_pending else None, delta_color="off")
-    c4.metric("Total", f"{total_approved} / {total_limit}",
+    c5.metric("Total", f"{total_approved} / {total_limit}",
               f"⏳ {total_pending} pending" if total_pending else None, delta_color="off")
 
     st.markdown("")
     cb_committed = cb_approved + cb_pending
     fb_committed = fb_approved + fb_pending
+    ft_committed = ft_approved + ft_pending
     ot_committed = ot_approved + ot_pending
     total_committed = total_approved + total_pending
 
-    pc1, pc2, pc3, pc4 = st.columns(4)
+    pc1, pc2, pc3, pc4, pc5 = st.columns(5)
     with pc1:
         st.caption("**Car Boot**")
         st.progress(min(cb_committed / CAR_BOOT_LIMIT, 1.0), text=f"{cb_committed}/{CAR_BOOT_LIMIT}")
@@ -710,9 +723,12 @@ if show_section("1️⃣ Dashboard"):
         st.caption("**F&B**")
         st.progress(min(fb_committed / FB_OVERALL_LIMIT, 1.0), text=f"{fb_committed}/{FB_OVERALL_LIMIT}")
     with pc3:
+        st.caption("**Food Truck**")
+        st.progress(min(ft_committed / FT_LIMIT, 1.0), text=f"{ft_committed}/{FT_LIMIT}")
+    with pc4:
         st.caption("**Crafts & Others**")
         st.progress(min(ot_committed / OTHERS_LIMIT, 1.0), text=f"{ot_committed}/{OTHERS_LIMIT}")
-    with pc4:
+    with pc5:
         st.caption("**Total**")
         st.progress(min(total_committed / total_limit, 1.0), text=f"{total_committed}/{total_limit}")
 
@@ -826,7 +842,7 @@ if show_section("3️⃣ Permohonan Menunggu"):
         f_col1, f_col2, f_col3 = st.columns([2, 3, 1])
 
         with f_col1:
-            type_options = ["Semua", "Car Boot Sales", "F&B", "Arts/Crafts & Others"]   # ⬅️ DIUBAH
+            type_options = ["Semua", "Car Boot Sales", "F&B", "Food Truck", "Arts/Crafts & Others"]
             type_filter = st.selectbox("Kategori", options=type_options, key="pending_type_filter")
 
         with f_col2:
@@ -937,7 +953,7 @@ if show_section("4️⃣ Rekod Bayaran"):
         with f1:
             category_filter = st.selectbox(
                 "Kategori",
-                options=["Semua", "Car Boot Sales", "F&B", "Arts/Crafts & Others"],   # ⬅️ DIUBAH
+                options=["Semua", "Car Boot Sales", "F&B", "Food Truck", "Arts/Crafts & Others"],
                 key="pay_filter_category",
             )
         with f2:
@@ -970,6 +986,8 @@ if show_section("4️⃣ Rekod Bayaran"):
             if row_type == CAT_CARBOOT:
                 lot_val = parking_lot
             elif row_type == CAT_FB:
+                lot_val = fnb_lot
+            elif row_type == CAT_FT:
                 lot_val = fnb_lot
             elif row_type == CAT_ARTS:
                 lot_val = arts_lot
