@@ -605,21 +605,44 @@ def edit_vendor_dialog(plate):
             st.rerun()
 
 
+# ============================================================
+# DIALOG PADAM — guna INDEX (buang 1 baris sahaja)
+# ============================================================
 @st.dialog("Sahkan Padam")
-def confirm_delete_dialog(plate, vendor_name):
-    st.warning("Anda akan **memadam** rekod vendor ini:")
+def confirm_delete_dialog(plate, vendor_name, row_signature):
+    """Padam SATU baris sahaja berdasarkan signature unik (plate + nama + semua kolum)."""
+    st.warning("Anda akan **memadam** 1 baris rekod vendor ini:")
     st.markdown(f"**No. Plate:** `{plate}`  \n**Nama:** {vendor_name}")
     st.write("")
+    st.info(
+        "ℹ️ Kalau ada duplicate (2 baris sama plate), **hanya 1 baris ini** "
+        "akan dipadam. Baris lain kekal."
+    )
     st.error("⚠️ **Tindakan ini tidak boleh diundur.** Data akan dibuang dari Google Sheet.")
+
     col1, col2 = st.columns(2)
     with col1:
         if st.button("Ya, Padam", type="primary", use_container_width=True, key="dlg_delete_yes"):
             global df
-            df = df[df[COL_PLATE] != plate].reset_index(drop=True)
-            safe_update(conn, df)
-            log_action(conn, ADMIN_NAME, "DELETE", plate, f"Padam: {vendor_name}")
-            st.toast(f"🗑️ {plate} telah dipadam", icon="🗑️")
-            st.rerun()
+
+            # Cari index asal dalam df menggunakan signature
+            matched_idx = None
+            for i, r in df.iterrows():
+                sig = tuple(str(r.get(c, "")) for c in df.columns)
+                if sig == row_signature:
+                    matched_idx = i
+                    break
+
+            if matched_idx is not None:
+                df = df.drop(matched_idx).reset_index(drop=True)
+                safe_update(conn, df)
+                log_action(conn, ADMIN_NAME, "DELETE", plate,
+                           f"Padam 1 baris: {vendor_name}")
+                st.toast(f"🗑️ 1 baris {plate} telah dipadam", icon="🗑️")
+                st.rerun()
+            else:
+                st.error("❌ Baris tidak dijumpai — mungkin sudah dipadam.")
+
     with col2:
         if st.button("Batal", use_container_width=True, key="dlg_delete_no"):
             st.rerun()
@@ -1184,22 +1207,45 @@ if show_all:
 
     st.markdown("<div style='height: 1rem;'></div>", unsafe_allow_html=True)
 
+    # ============================================================
+    # PADAM — pilih baris guna nomor (bukan plate)
+    # ============================================================
+    st.markdown("##### 🗑️ Padam 1 Baris")
+    st.caption(
+        "Kalau ada duplicate plate, pilih **baris tepat** untuk dipadam — "
+        "baris lain akan kekal."
+    )
+
+    display_df_reset = display_df.reset_index(drop=True)
+    delete_options = ["— Pilih baris —"] + [
+        f"Baris {i+1}: {display_df_reset.iloc[i][COL_PLATE]} — {display_df_reset.iloc[i][COL_NAME]}"
+        for i in range(len(display_df_reset))
+    ]
+
     act_col1, act_col2 = st.columns([3, 1])
     with act_col1:
-        plate_to_delete = st.selectbox(
-            "Pilih No. Plate untuk dipadam",
-            options=[""] + filtered_all[COL_PLATE].tolist(),
-            key="delete_plate_select",
+        delete_choice = st.selectbox(
+            "Pilih baris untuk dipadam",
+            options=delete_options,
+            key="delete_row_select",
+            label_visibility="collapsed",
         )
     with act_col2:
-        st.markdown("<div style='height: 1.75rem;'></div>", unsafe_allow_html=True)
         if st.button("🗑️ Padam", type="primary", use_container_width=True):
-            if plate_to_delete:
-                row = df[df[COL_PLATE] == plate_to_delete]
-                name = row.iloc[0][COL_NAME] if not row.empty else "-"
-                confirm_delete_dialog(plate_to_delete, name)
+            if delete_choice and delete_choice != "— Pilih baris —":
+                idx_pick = delete_options.index(delete_choice) - 1
+                row_pick = display_df_reset.iloc[idx_pick]
+                plate_pick = row_pick[COL_PLATE]
+                name_pick = row_pick[COL_NAME]
+
+                # Bina signature unik (semua kolum sebagai tuple string)
+                row_signature = tuple(
+                    str(row_pick.get(c, "")) for c in df.columns
+                )
+
+                confirm_delete_dialog(plate_pick, name_pick, row_signature)
             else:
-                st.error("Sila pilih No. Plate.")
+                st.error("Sila pilih baris.")
 
     st.markdown("<div style='height: 0.5rem;'></div>", unsafe_allow_html=True)
 
