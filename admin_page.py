@@ -1041,15 +1041,18 @@ if show_all:
     )
 
     # Buang kolum tak perlu
-    drop_exact = {
-        "Media Sosial Perniagaan (Jika Ada)",
+   "Media Sosial Perniagaan (Jika Ada)",
         "Senarai Produk yang Dijual\nListkan:\n1. baju\n2. seluar",
         "Notes",
         "TOTAL PRICE",
+        "Jenis Model Kenderaan",
+        "Email address",
     }
     drop_contains = [
         "Media Sosial Perniagaan",
         "Senarai Produk yang Dijual\nListkan",
+        "Jenis Model Kenderaan",
+        "Email address",
     ]
 
     def _should_drop(col_name):
