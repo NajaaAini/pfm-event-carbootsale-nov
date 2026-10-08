@@ -172,14 +172,8 @@ if df is None:
 df["Status"] = df["Status"].apply(normalize_status)
 
 # ============================================================
-# SEARCH FORM
+# WHATSAPP ADMIN
 # ============================================================
-query = st.text_input(
-    "No. Pendaftaran Kenderaan/Plate Number",
-    placeholder="Contoh: NNA1806"
-).strip().upper()
-
-# ---------- BUTANG SEMAK + WHATSAPP SEBELAH-SEBELAH ----------
 WA_ADMIN = "601157727459"
 WA_TEXT = "Hi! Pertanyaan tentang vendor carbootsale PFM : ."
 
@@ -196,29 +190,30 @@ def _encode_wa(text):
 
 WA_URL = f"https://wa.me/{WA_ADMIN}?text={_encode_wa(WA_TEXT)}"
 
-col1, col2, col3 = st.columns([1, 1, 1])
+# ============================================================
+# SEARCH FORM — 2 butang tengah
+# ============================================================
+with st.form("search"):
+    query = st.text_input(
+        "No. Pendaftaran Kenderaan/Plate Number",
+        placeholder="Contoh: NNA1806"
+    ).strip().upper()
 
-with col2:
-    submitted = st.button("Semak Status", type="primary", use_container_width=True)
+    col1, col2, col3, col4 = st.columns([1, 1, 1, 1])
 
-with col3:
-    st.markdown(f"""
-    <a href="{WA_URL}" target="_blank" style="
-        display: flex;
-        align-items: center;
-        justify-content: center;
-        gap: 0.35rem;
-        background-color: #128C7E;
-        color: #ffffff;
-        padding: 0.55rem 0.85rem;
-        border-radius: 6px;
-        text-decoration: none;
-        font-weight: 600;
-        font-size: 0.85rem;
-        height: 2.5rem;
-        white-space: nowrap;
-    ">💬 WhatsApp Admin</a>
-    """, unsafe_allow_html=True)
+    with col2:
+        submitted = st.form_submit_button(
+            "Semak Status",
+            type="primary",
+            use_container_width=True,
+        )
+
+    with col3:
+        st.link_button(
+            "💬 WhatsApp Admin",
+            WA_URL,
+            use_container_width=True,
+        )
 
 # ============================================================
 # RESULT
