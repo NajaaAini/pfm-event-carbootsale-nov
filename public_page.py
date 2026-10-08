@@ -244,6 +244,13 @@ def get_vendor_payment_info(
         "fnb_lot": _clean(
             latest.get("Pilih F&B Lot", "")
         ),
+
+        "arts_lot": _clean(
+            latest.get(
+                "Pilih Arts & Crafts / Toys Lot",
+                ""
+            )
+        ),
     }
 
 
@@ -574,6 +581,13 @@ if submitted and query:
         fnb_lot = (
             payment_info.get(
                 "fnb_lot",
+                ""
+            )
+        )
+
+        arts_lot = (
+            payment_info.get(
+                "arts_lot",
                 ""
             )
         )
@@ -914,13 +928,14 @@ if submitted and query:
                 # DETAIL SLOT
                 #
                 # Termasuk:
-                # - Car Boot Sales
-                # - F&B
-                # - Arts & Crafts / Toys
+                # - Car Boot Sales (parking lot)
+                # - F&B (F&B lot)
+                # - Arts & Crafts / Toys (arts lot)
                 # ==============================================
                 if (
                     parking_lot
                     or fnb_lot
+                    or arts_lot
                 ):
 
                     with st.container(
@@ -964,9 +979,30 @@ if submitted and query:
                                     background-color: #f7f3ee;
                                     border-radius: 10px;
                                     padding: 14px 16px;
+                                    margin-bottom: 10px;
                                 ">
                                     <b>🍴 F&B Lot:</b>
                                     {fnb_lot}
+                                </div>
+                                """,
+                                unsafe_allow_html=True
+                            )
+
+
+                        # --------------------------------------
+                        # ARTS & CRAFTS / TOYS LOT
+                        # --------------------------------------
+                        if arts_lot:
+
+                            st.markdown(
+                                f"""
+                                <div style="
+                                    background-color: #f7f3ee;
+                                    border-radius: 10px;
+                                    padding: 14px 16px;
+                                ">
+                                    <b>🎨 Arts & Crafts / Toys Lot:</b>
+                                    {arts_lot}
                                 </div>
                                 """,
                                 unsafe_allow_html=True
@@ -981,8 +1017,17 @@ if submitted and query:
                 ):
 
                     st.markdown(
-                        "### 📅 Jumpa anda pada "
-                        "6-8 November 2026!"
+                        """
+                        <h2 style="
+                            margin-top: 0;
+                            margin-bottom: 0.75rem;
+                            font-size: 1.6rem;
+                            font-weight: 700;
+                        ">
+                            📅 Jumpa anda pada 6-8 November 2026!
+                        </h2>
+                        """,
+                        unsafe_allow_html=True
                     )
 
                     st.markdown(
