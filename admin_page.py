@@ -137,12 +137,18 @@ def get_deposit(vendor_type):
 
 
 def get_addon_price(addon_str):
+    """Sokong format 'RM 18' ATAU nombor mentah '18'."""
     if addon_str is None or pd.isna(addon_str):
         return 0.0
+    s = str(addon_str).strip()
+    if s == "":
+        return 0.0
     try:
-        matches = re.findall(r"RM\s*([0-9]+(?:\.[0-9]+)?)", str(addon_str))
-        return sum(float(m) for m in matches)
-    except Exception:
+        matches = re.findall(r"RM\s*([0-9]+(?:\.[0-9]+)?)", s, flags=re.IGNORECASE)
+        if matches:
+            return sum(float(m) for m in matches)
+        return float(s)
+    except (ValueError, TypeError):
         return 0.0
 
 
@@ -207,6 +213,16 @@ def _clean_payment_val(v):
     return s
 
 
+def _pick_col(df_, *candidates):
+    """Cari nama kolum pertama yang wujud (case-insensitive, abaikan spasi)."""
+    norm = {str(c).strip().lower().replace(" ", ""): c for c in df_.columns}
+    for cand in candidates:
+        key = cand.strip().lower().replace(" ", "")
+        if key in norm:
+            return norm[key]
+    return None
+
+
 def get_vendor_payment_info(plate):
     """Return dict info payment terkini untuk plate."""
     normalized = str(plate).upper().replace(" ", "")
@@ -228,16 +244,28 @@ def get_vendor_payment_info(plate):
 
     latest = matched.iloc[0]
 
+    # Cari nama kolum sebenar dalam Sheet Payments
+    col_proof   = _pick_col(payments_df, PROOF_COL, "Upload Bukti Bayaran", "Bukti Bayaran")
+    col_folder  = _pick_col(payments_df, "FolderUrl", "Folder URL")
+    col_ts      = _pick_col(payments_df, "Timestamp", "Tarikh")
+    col_parking = _pick_col(payments_df, "Pilih parking lot", "Parking Lot", "Parking")
+    col_fnb     = _pick_col(payments_df, "Pilih F&B Lot", "F&B Lot", "FNB Lot", "F&B")
+
+    def _get(col):
+        if col is None:
+            return ""
+        return _clean_payment_val(latest.get(col, ""))
+
     return {
-        "proof_url": _clean_payment_val(latest.get(PROOF_COL, "")),
-        "folder_url": _clean_payment_val(latest.get("FolderUrl", "")),
-        "timestamp": _clean_payment_val(latest.get("Timestamp", "")),
-        "parking_lot": _clean_payment_val(latest.get("Pilih parking lot", "")),
-        "fnb_lot": _clean_payment_val(latest.get("Pilih F&B Lot", "")),
+        "proof_url":   _get(col_proof),
+        "folder_url":  _get(col_folder),
+        "timestamp":   _get(col_ts),
+        "parking_lot": _get(col_parking),
+        "fnb_lot":     _get(col_fnb),
     }
 
 
-# Backward-compat — kalau ada kod lama panggil get_vendor_proof
+# Backward-compat
 def get_vendor_proof(plate):
     info = get_vendor_payment_info(plate)
     return info["proof_url"], info["folder_url"], info["timestamp"]
@@ -770,7 +798,7 @@ if show_section("3️⃣ Permohonan Menunggu"):
 
 
 # ============================================================
-# SECTION 4 — REKOD BAYARAN
+# SECTION 4 — REKOD BAYARAN (F&B / Car Boot / Others)
 # ============================================================
 if show_section("4️⃣ Rekod Bayaran"):
     st.markdown("## 4️⃣ Rekod Bayaran")
@@ -781,6 +809,7 @@ if show_section("4️⃣ Rekod Bayaran"):
     if approved_df.empty:
         st.info("Belum ada vendor yang diluluskan.")
     else:
+        # ---------- Ringkasan atas ----------
         total_paid = int(approved_df["Paid"].sum())
         total_unpaid = len(approved_df) - total_paid
 
@@ -791,57 +820,72 @@ if show_section("4️⃣ Rekod Bayaran"):
 
         st.markdown("---")
 
+        # ---------- Filter bukti (global) ----------
         payment_filter = st.selectbox(
-            "Filter",
-            options=["Semua", "Belum Bayar", "Sudah Bayar", "Belum Upload Bukti", "Sudah Upload Bukti"],
+            "Filter Bukti",
+            options=["Semua", "Belum Upload Bukti", "Sudah Upload Bukti"],
             key="payment_filter",
         )
 
-        if payment_filter == "Belum Bayar":
-            view_df = approved_df[~approved_df["Paid"]]
-        elif payment_filter == "Sudah Bayar":
-            view_df = approved_df[approved_df["Paid"]]
-        elif payment_filter == "Belum Upload Bukti":
-            view_df = approved_df[
-                ~approved_df[COL_PLATE].apply(lambda p: bool(get_vendor_payment_info(p)["proof_url"]))
-            ]
-        elif payment_filter == "Sudah Upload Bukti":
-            view_df = approved_df[
-                approved_df[COL_PLATE].apply(lambda p: bool(get_vendor_payment_info(p)["proof_url"]))
-            ]
-        else:
-            view_df = approved_df
+        def apply_proof_filter(d):
+            if payment_filter == "Belum Upload Bukti":
+                return d[~d[COL_PLATE].apply(lambda p: bool(get_vendor_payment_info(p)["proof_url"]))]
+            if payment_filter == "Sudah Upload Bukti":
+                return d[d[COL_PLATE].apply(lambda p: bool(get_vendor_payment_info(p)["proof_url"]))]
+            return d
 
-        st.caption(f"Menunjukkan **{len(view_df)}** daripada **{len(approved_df)}** vendor.")
+        # ---------- Pecahan kategori ----------
+        fb_df_approved = approved_df[approved_df[COL_TYPE] == CAT_FB]
+        cb_df_approved = approved_df[approved_df[COL_TYPE] == CAT_CARBOOT]
+        ot_df_approved = approved_df[~approved_df[COL_TYPE].isin([CAT_CARBOOT, CAT_FB])]
 
-        if view_df.empty:
-            st.info("Tiada vendor sepadan.")
-        else:
-            with st.form("payment_form"):
-                new_paid_status = {}
+        # ---------- Fungsi render satu kategori ----------
+        def render_payment_section(title, icon, section_df, key_prefix):
+            st.markdown(f"### {icon} {title}")
 
-                for _, row in view_df.iterrows():
+            section_df = apply_proof_filter(section_df)
+
+            if section_df.empty:
+                st.info(f"Tiada vendor {title} untuk dipaparkan.")
+                st.markdown("")
+                return
+
+            n_paid = int(section_df["Paid"].sum())
+            n_unpaid = len(section_df) - n_paid
+            st.caption(
+                f"**{len(section_df)}** vendor — ✅ {n_paid} bayar &nbsp;|&nbsp; ⏳ {n_unpaid} belum bayar"
+            )
+
+            new_paid_status = {}
+
+            with st.form(f"payment_form_{key_prefix}"):
+                for _, row in section_df.iterrows():
                     plate = row[COL_PLATE]
                     info = get_vendor_payment_info(plate)
 
-                    proof_url = info["proof_url"]
-                    folder_url = info["folder_url"]
+                    proof_url   = info["proof_url"]
+                    folder_url  = info["folder_url"]
                     parking_lot = info["parking_lot"]
-                    fnb_lot = info["fnb_lot"]
+                    fnb_lot     = info["fnb_lot"]
 
                     v_t = str(row.get(COL_TYPE, "")).strip()
                     v_total = get_vendor_total(v_t, row.get(COL_ADDON, ""))
 
                     cols = st.columns([3, 2, 1, 1])
 
+                    # --- Kolum 0: nama + plate ---
                     with cols[0]:
                         status_icon = "✅" if proof_url else "⬜"
+                        sub = str(row.get(COL_CAT, "")).strip()
+                        sub_str = f" / {sub}" if sub else ""
                         st.markdown(
                             f"{status_icon} **{plate}** — {row[COL_NAME]}  \n"
-                            f"<span style='color:#78716c;font-size:0.85rem'>{row[COL_TYPE]}</span>",
+                            f"<span style='color:#78716c;font-size:0.85rem'>"
+                            f"{row[COL_TYPE]}{sub_str}</span>",
                             unsafe_allow_html=True,
                         )
 
+                    # --- Kolum 1: bukti + lot ---
                     with cols[1]:
                         if proof_url:
                             st.markdown(f"[📄 Bukti]({proof_url})")
@@ -850,26 +894,23 @@ if show_section("4️⃣ Rekod Bayaran"):
                         else:
                             st.caption("_Belum upload_")
 
+                        if parking_lot:
+                            st.caption(f"🅿️ Parking: **{parking_lot}**")
+                        if fnb_lot:
+                            st.caption(f"🍽️ F&B Lot: **{fnb_lot}**")
+
+                    # --- Kolum 2: total ---
                     with cols[2]:
                         st.markdown(f"**{format_rm(v_total)}**")
 
+                    # --- Kolum 3: checkbox ---
                     with cols[3]:
                         new_val = st.checkbox(
                             "Sudah Bayar",
                             value=bool(row["Paid"]),
-                            key=f"paid_{plate}",
+                            key=f"paid_{key_prefix}_{plate}",
                         )
                         new_paid_status[plate] = new_val
-
-                    # === INFO SLOT (Parking Lot + F&B Lot) ===
-                    slot_parts = []
-                    if parking_lot:
-                        slot_parts.append(f"**Parking Lot:** {parking_lot}")
-                    if fnb_lot:
-                        slot_parts.append(f"**F&B Lot:** {fnb_lot}")
-
-                    if slot_parts:
-                        st.caption("📍 " + " &nbsp;|&nbsp; ".join(slot_parts))
 
                     st.markdown(
                         "<hr style='margin:0.75rem 0;border:none;border-top:1px solid #f0e6d6;'>",
@@ -877,7 +918,9 @@ if show_section("4️⃣ Rekod Bayaran"):
                     )
 
                 save_clicked = st.form_submit_button(
-                    "💾 Simpan Status Bayaran", type="primary", use_container_width=True
+                    f"💾 Simpan Status Bayaran — {title}",
+                    type="primary",
+                    use_container_width=True,
                 )
 
             if save_clicked:
@@ -892,15 +935,26 @@ if show_section("4️⃣ Rekod Bayaran"):
                                 conn, ADMIN_NAME,
                                 "PAID" if is_paid else "UNPAID",
                                 plate,
-                                f"{'Tanda' if is_paid else 'Buang tanda'} bayaran",
+                                f"{'Tanda' if is_paid else 'Buang tanda'} bayaran ({title})",
                             )
 
                     if changed > 0:
                         safe_update(conn, df)
-                        st.toast(f"✅ {changed} rekod dikemaskini", icon="💾")
+                        st.toast(f"✅ {changed} rekod {title} dikemaskini", icon="💾")
                     else:
                         st.toast("Tiada perubahan", icon="ℹ️")
                     st.rerun()
+
+            st.markdown("")
+
+        # ---------- Render 3 section ----------
+        render_payment_section("F&B", "🍽️", fb_df_approved, "fb")
+        st.divider()
+
+        render_payment_section("Car Boot Sales", "🚗", cb_df_approved, "cb")
+        st.divider()
+
+        render_payment_section("Others (Arts & Crafts / Toys)", "🎨", ot_df_approved, "ot")
 
     st.divider()
 
