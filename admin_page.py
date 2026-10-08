@@ -885,7 +885,7 @@ if show_section("3️⃣ Permohonan Menunggu"):
             list_height = min(max(len(filtered) * 210, 260), 700)
 
             with st.container(height=list_height, border=False):
-                for _, row in filtered.iterrows():
+                for idx, (_, row) in enumerate(filtered.iterrows()):
                     plate = row[COL_PLATE]
                     name = row[COL_NAME]
                     v_type = row[COL_TYPE]
@@ -914,13 +914,13 @@ if show_section("3️⃣ Permohonan Menunggu"):
                         b1, b2, b3, _ = st.columns([1, 1, 1, 3])
 
                         with b1:
-                            if st.button("✓ Lulus", type="primary", use_container_width=True, key=f"approve_{plate}"):
+                            if st.button("✓ Lulus", type="primary", use_container_width=True, key=f"approve_{plate}_{idx}"):
                                 confirm_approve_dialog(plate, name)
                         with b2:
-                            if st.button("✗ Tolak", use_container_width=True, key=f"reject_{plate}"):
+                            if st.button("✗ Tolak", use_container_width=True, key=f"reject_{plate}_{idx}"):
                                 confirm_reject_dialog(plate, name)
                         with b3:
-                            if st.button("✎ Edit", use_container_width=True, key=f"edit_{plate}"):
+                            if st.button("✎ Edit", use_container_width=True, key=f"edit_{plate}_{idx}"):
                                 edit_vendor_dialog(plate)
 
     st.divider()
