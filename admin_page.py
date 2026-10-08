@@ -539,21 +539,21 @@ if wa_group:
 # ============================================================
 if show_section("1️⃣ Dashboard"):
     st.markdown("## 1️⃣ Dashboard")
-    with st.expander("🔍 DEBUG — Total Price Breakdown", expanded=False):
-    st.write("**Secrets `event`:**", dict(st.secrets["event"]))
-
-    test_row = df.iloc[0] if not df.empty else None
-    if test_row is not None:
-        v_type = test_row.get(COL_TYPE, "")
-        v_addon = test_row.get(COL_ADDON, "")
-        st.write("**Sample vendor:**", test_row.get(COL_NAME, ""))
-        st.write("**Kategori (raw):**", repr(v_type))
-        st.write("**ADD ON (raw):**", repr(v_addon))
-        st.write("**Category price:**", get_category_price(v_type))
-        st.write("**Deposit:**", get_deposit(v_type))
-        st.write("**Addon price:**", get_addon_price(v_addon))
-        st.write("**TOTAL:**", get_vendor_total(v_type, v_addon))
-        
+        with st.expander("🔍 DEBUG — Total Price Breakdown", expanded=False):
+        st.write("**Secrets `event`:**", dict(st.secrets["event"]))
+    
+        test_row = df.iloc[0] if not df.empty else None
+        if test_row is not None:
+            v_type = test_row.get(COL_TYPE, "")
+            v_addon = test_row.get(COL_ADDON, "")
+            st.write("**Sample vendor:**", test_row.get(COL_NAME, ""))
+            st.write("**Kategori (raw):**", repr(v_type))
+            st.write("**ADD ON (raw):**", repr(v_addon))
+            st.write("**Category price:**", get_category_price(v_type))
+            st.write("**Deposit:**", get_deposit(v_type))
+            st.write("**Addon price:**", get_addon_price(v_addon))
+            st.write("**TOTAL:**", get_vendor_total(v_type, v_addon))
+            
 
     cb_approved = count_approved(**{COL_TYPE: CAT_CARBOOT})
     fb_approved = count_approved(**{COL_TYPE: CAT_FB})
