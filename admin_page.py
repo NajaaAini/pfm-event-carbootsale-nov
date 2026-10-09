@@ -1259,20 +1259,33 @@ if show_all:
     drop_exact = {
         "Media Sosial Perniagaan (Jika Ada)",
         "Notes", "TOTAL PRICE", "Jenis Model Kenderaan", "Email address",
+        "Nama/Name",
     }
     drop_contains = [
         "Media Sosial Perniagaan",
         "Jenis Model Kenderaan",
         "Email address",
+        "TERMA DAN SYARAT",
+        "IC (",
     ]
 
     def _should_drop(col_name):
-        if col_name in drop_exact:
+        cname = str(col_name).strip()
+        if cname in drop_exact:
             return True
         for pat in drop_contains:
-            if pat in str(col_name):
+            if pat in cname:
                 return True
-        if str(col_name).strip() == "Notes":
+        if cname == "Notes":
+            return True
+        # Buang column kosong / auto-generated oleh Google Sheet
+        if cname == "":
+            return True
+        if cname.startswith("Unnamed:"):
+            return True
+        if re.fullmatch(r"Column\s*\d+", cname, flags=re.IGNORECASE):
+            return True
+        if cname.lower() in ("nan", "none", "nat", "null"):
             return True
         return False
 
@@ -1281,7 +1294,7 @@ if show_all:
     if COL_PHONE in display_df.columns:
         display_df[COL_PHONE] = display_df[COL_PHONE].apply(format_phone_display)
 
-        priority_cols = [COL_PLATE, COL_NAME, COL_PHONE, COL_TYPE, COL_CAT,
+    priority_cols = [COL_PLATE, COL_NAME, COL_PHONE, COL_TYPE, COL_CAT,
                      "Parking Lot", "F&B Lot", "Food Truck Lot", "Arts & Crafts Lot",
                      "Timestamp", "Total Price"]
     ordered_cols = [c for c in priority_cols if c in display_df.columns] + \
