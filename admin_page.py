@@ -311,6 +311,42 @@ def format_rm(amount):
         return "RM 0.00"
 
 
+def format_timestamp_display(raw):
+    """Tukar timestamp dari Google Form jadi format yang senang baca."""
+    if raw is None or pd.isna(raw):
+        return "—"
+    s = str(raw).strip()
+    if s == "" or s.lower() in ("nan", "none", "nat", "null", "—", "-"):
+        return "—"
+
+    formats = [
+        "%d/%m/%Y %H:%M:%S",
+        "%m/%d/%Y %H:%M:%S",
+        "%Y-%m-%d %H:%M:%S",
+        "%d/%m/%Y %H:%M",
+        "%m/%d/%Y %H:%M",
+        "%Y-%m-%d %H:%M",
+        "%d/%m/%Y",
+        "%m/%d/%Y",
+        "%Y-%m-%d",
+    ]
+    for fmt in formats:
+        try:
+            dt = datetime.strptime(s, fmt)
+            return dt.strftime("%d %b %Y, %I:%M %p")
+        except (ValueError, TypeError):
+            continue
+
+    try:
+        dt = pd.to_datetime(s, dayfirst=True, errors="coerce")
+        if pd.notna(dt):
+            return dt.strftime("%d %b %Y, %I:%M %p")
+    except Exception:
+        pass
+
+    return s
+
+
 def get_vendor_total(vendor_type, addon_str):
     return get_category_price(vendor_type) + get_deposit(vendor_type) + get_addon_price(addon_str)
 
@@ -1082,10 +1118,12 @@ if show_section("4️⃣ Rekod Bayaran"):
             display_rows.append({
                 "Plate": plate,
                 "Nama": row[COL_NAME],
+                "Telefon": format_phone_display(row.get(COL_PHONE, "")),
                 "Kategori": v_t,
                 "F&B Category": cat if cat else "—",
                 "Lot": lot_val or "—",
                 "Total": format_rm(v_total),
+                "Timestamp": format_timestamp_display(info.get("timestamp", "")),
                 "Bukti": "📄 Ada" if proof_url else "⬜ Tiada",
                 "Link": proof_url if proof_url else "",
                 "Bayar": bool(row["Paid"]),
@@ -1130,15 +1168,17 @@ if show_section("4️⃣ Rekod Bayaran"):
                 hide_index=True,
                 use_container_width=True,
                 height=table_height,
-                disabled=["Plate", "Nama", "Kategori", "F&B Category",
-                          "Lot", "Total", "Bukti", "Link"],
+                disabled=["Plate", "Nama", "Telefon", "Kategori", "F&B Category",
+                          "Lot", "Total", "Timestamp", "Bukti", "Link"],
                 column_config={
                     "Plate": st.column_config.TextColumn("Plate", width="small"),
                     "Nama": st.column_config.TextColumn("Nama", width="medium"),
+                    "Telefon": st.column_config.TextColumn("Telefon", width="small"),
                     "Kategori": st.column_config.TextColumn("Kategori", width="medium"),
                     "F&B Category": st.column_config.TextColumn("F&B Category", width="medium"),
                     "Lot": st.column_config.TextColumn("Lot", width="small"),
                     "Total": st.column_config.TextColumn("Total", width="small"),
+                    "Timestamp": st.column_config.TextColumn("Timestamp", width="medium"),
                     "Bukti": st.column_config.TextColumn("Bukti", width="small"),
                     "Link": st.column_config.LinkColumn("Link", display_text="Buka 📄", width="small"),
                     "Bayar": st.column_config.CheckboxColumn("Bayar", width="small", default=False),
@@ -1243,7 +1283,7 @@ if show_all:
 
     display_df = filtered_all.copy()
     display_df["Timestamp"] = display_df[COL_PLATE].apply(
-        lambda p: get_vendor_payment_info(p)["timestamp"] or "-")
+        lambda p: format_timestamp_display(get_vendor_payment_info(p)["timestamp"]))
     display_df["Parking Lot"] = display_df[COL_PLATE].apply(
         lambda p: get_vendor_payment_info(p)["parking_lot"] or "-")
     display_df["F&B Lot"] = display_df[COL_PLATE].apply(
