@@ -1242,7 +1242,8 @@ if show_all:
         ]
 
     display_df = filtered_all.copy()
-
+    display_df["Timestamp"] = display_df[COL_PLATE].apply(
+        lambda p: get_vendor_payment_info(p)["timestamp"] or "-")
     display_df["Parking Lot"] = display_df[COL_PLATE].apply(
         lambda p: get_vendor_payment_info(p)["parking_lot"] or "-")
     display_df["F&B Lot"] = display_df[COL_PLATE].apply(
@@ -1280,9 +1281,9 @@ if show_all:
     if COL_PHONE in display_df.columns:
         display_df[COL_PHONE] = display_df[COL_PHONE].apply(format_phone_display)
 
-    priority_cols = [COL_PLATE, COL_NAME, COL_PHONE, COL_TYPE, COL_CAT,
+        priority_cols = [COL_PLATE, COL_NAME, COL_PHONE, COL_TYPE, COL_CAT,
                      "Parking Lot", "F&B Lot", "Food Truck Lot", "Arts & Crafts Lot",
-                     "Total Price"]
+                     "Timestamp", "Total Price"]
     ordered_cols = [c for c in priority_cols if c in display_df.columns] + \
                    [c for c in display_df.columns if c not in priority_cols]
     display_df = display_df[ordered_cols]
