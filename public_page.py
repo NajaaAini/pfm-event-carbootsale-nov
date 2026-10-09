@@ -945,9 +945,9 @@ if submitted and query:
                 # NOTA PENTING
                 # ==============================================
                 st.warning(
-                    "⚠️ **Penting:** Kalau bayaran "
-                    "tidak diterima **2 hari sebelum event**, "
-                    "slot anda akan dibatalkan automatik. "
+                    "⚠️ **Penting:** Sila jelaskan bayaran "
+                    "**secepat mungkin** bagi mengesahkan tempahan slot anda. "
+                    "Kegagalan membuat bayaran boleh menyebabkan slot dibatalkan. "
                     "**Sila upload bukti bayaran dalam format PDF sahaja.**"
                 )
 
