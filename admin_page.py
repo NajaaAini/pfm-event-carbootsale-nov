@@ -366,7 +366,7 @@ def get_vendor_total(vendor_type, addon_str):
 # SAMBUNGAN DATA
 # ============================================================
 conn = st.connection("gsheets", type=GSheetsConnection)
-df = load_sheet_safe(conn, "Vendors", ttl=300)
+df = load_sheet_safe(conn, "Vendors", ttl=60)
 
 if df is None:
     st.stop()
@@ -385,7 +385,7 @@ df["Notes"] = df["Notes"].astype("object").fillna("").astype(str)
 # ============================================================
 # LOAD PAYMENTS
 # ============================================================
-payments_df = load_sheet_safe(conn, "Payments", ttl=300)
+payments_df = load_sheet_safe(conn, "Payments", ttl=60)
 if payments_df is None or payments_df.empty:
     payments_df = pd.DataFrame(
         columns=[
@@ -1180,6 +1180,11 @@ if show_section("4️⃣ Rekod Bayaran"):
                 f"Tick kolum **Bayar** → klik **💾 Simpan Status Bayaran**."
             )
 
+            # === FIX: convert semua column ke string kecuali Bayar ===
+            for c in table_df.columns:
+                if c != "Bayar":
+                    table_df[c] = table_df[c].astype(str)
+
             row_h = 35
             header_h = 45
             table_height = min(max(len(table_df) * row_h + header_h, 250), 600)
@@ -1348,7 +1353,6 @@ if show_all:
                 return True
         if cname == "Notes":
             return True
-        # Buang column kosong / auto-generated oleh Google Sheet
         if cname == "":
             return True
         if cname.startswith("Unnamed:"):
@@ -1370,6 +1374,9 @@ if show_all:
     ordered_cols = [c for c in priority_cols if c in display_df.columns] + \
                    [c for c in display_df.columns if c not in priority_cols]
     display_df = display_df[ordered_cols]
+
+    # === FIX: convert semua column ke string untuk elak ArrowTypeError ===
+    display_df = display_df.astype(str)
 
     table_height = min(max(len(display_df) * 35 + 45, 250), 600)
     st.dataframe(display_df, hide_index=True, use_container_width=True, height=table_height)
