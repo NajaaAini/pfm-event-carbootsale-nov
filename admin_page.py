@@ -366,7 +366,7 @@ def get_vendor_total(vendor_type, addon_str):
 # SAMBUNGAN DATA
 # ============================================================
 conn = st.connection("gsheets", type=GSheetsConnection)
-df = load_sheet_safe(conn, "Vendors", ttl=60)
+df = load_sheet_safe(conn, "Vendors", ttl=300)
 
 if df is None:
     st.stop()
@@ -385,7 +385,7 @@ df["Notes"] = df["Notes"].astype("object").fillna("").astype(str)
 # ============================================================
 # LOAD PAYMENTS
 # ============================================================
-payments_df = load_sheet_safe(conn, "Payments", ttl=60)
+payments_df = load_sheet_safe(conn, "Payments", ttl=300)
 if payments_df is None or payments_df.empty:
     payments_df = pd.DataFrame(
         columns=[
@@ -1028,7 +1028,7 @@ if show_section("3️⃣ Permohonan Menunggu"):
                         v_total = get_vendor_total(v_type, row.get(COL_ADDON, ""))
                         st.caption(f"💰 Total: {format_rm(v_total)}")
 
-                        # ---- REMARK VENDOR (naik ke sini, bawah Total) ----
+                        # ---- REMARK VENDOR ----
                         remark_text = clean_text(row.get(remark_col, "")) if remark_col else ""
                         st.markdown(
                             f"<div style='font-size:0.8rem; font-weight:600; color:#92400e; "
