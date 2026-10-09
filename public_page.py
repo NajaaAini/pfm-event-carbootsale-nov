@@ -898,6 +898,20 @@ if submitted and query:
 
 
                 # ==============================================
+                # NOTA DEADLINE BAYARAN
+                # ==============================================
+                st.error(
+                    "📢 **PERINGATAN PENTING**\n\n"
+                    "Sila buat **full payment sebelum "
+                    "Isnin (12/10/2026) 11:00 pagi**.\n\n"
+                    "Selepas tempoh tersebut, pihak kami akan "
+                    "**cancel booking lot anda** dan lot tersebut "
+                    "akan dibuka semula kepada vendor lain.\n\n"
+                    "Terima kasih 🙏"
+                )
+
+
+                # ==============================================
                 # STATUS APPROVED
                 # ==============================================
                 with st.container(
