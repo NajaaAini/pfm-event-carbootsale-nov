@@ -254,6 +254,17 @@ def _get_products_col(df_):
     return None
 
 
+def _get_remark_col(df_):
+    for c in df_.columns:
+        cname = str(c).strip().lower()
+        if cname in ("remark", "remarks"):
+            return c
+    for c in df_.columns:
+        if "remark" in str(c).strip().lower():
+            return c
+    return None
+
+
 def _normalize_type(v):
     if v is None or pd.isna(v):
         return ""
@@ -933,6 +944,7 @@ if show_section("3️⃣ Permohonan Menunggu"):
 
     pending_df = df[df["Status"] == "Pending"]
     products_col = _get_products_col(df)
+    remark_col = _get_remark_col(df)
 
     if pending_df.empty:
         st.info("Tiada permohonan yang menunggu.")
@@ -973,7 +985,7 @@ if show_section("3️⃣ Permohonan Menunggu"):
         if filtered.empty:
             st.warning("Tiada permohonan sepadan dengan tapisan anda.")
         else:
-            list_height = min(max(len(filtered) * 300, 300), 1000)
+            list_height = min(max(len(filtered) * 340, 340), 1200)
 
             with st.container(height=list_height, border=False):
                 for idx, (_, row) in enumerate(filtered.iterrows()):
@@ -999,6 +1011,7 @@ if show_section("3️⃣ Permohonan Menunggu"):
                             unsafe_allow_html=True,
                         )
 
+                        # ---- SENARAI PRODUK ----
                         products_text = clean_products_str(row.get(products_col, "")) if products_col else ""
                         if products_text:
                             st.markdown(
@@ -1011,19 +1024,27 @@ if show_section("3️⃣ Permohonan Menunggu"):
                         else:
                             st.caption("🛍️ _(Tiada senarai produk diisi)_")
 
-                        remark_text = clean_text(row.get(COL_REMARK, ""))
-                        if remark_text:
-                            st.markdown(
-                                f"<div style='font-size:0.8rem; font-weight:600; color:#92400e; "
-                                f"text-transform:uppercase; letter-spacing:0.5px; margin:0.35rem 0 0.25rem 0;'>"
-                                f"📝 Remark Vendor</div>"
-                                f"<div class='remark-box'>{remark_text}</div>",
-                                unsafe_allow_html=True,
-                            )
-
+                        # ---- TOTAL ----
                         v_total = get_vendor_total(v_type, row.get(COL_ADDON, ""))
                         st.caption(f"💰 Total: {format_rm(v_total)}")
 
+                        # ---- REMARK VENDOR (naik ke sini, bawah Total) ----
+                        remark_text = clean_text(row.get(remark_col, "")) if remark_col else ""
+                        st.markdown(
+                            f"<div style='font-size:0.8rem; font-weight:600; color:#92400e; "
+                            f"text-transform:uppercase; letter-spacing:0.5px; margin:0.35rem 0 0.25rem 0;'>"
+                            f"📝 Remark Vendor</div>",
+                            unsafe_allow_html=True,
+                        )
+                        if remark_text:
+                            st.markdown(
+                                f"<div class='remark-box'>{remark_text}</div>",
+                                unsafe_allow_html=True,
+                            )
+                        else:
+                            st.caption("_(Tiada remark dari vendor)_")
+
+                        # ---- BUTTONS ----
                         b1, b2, b3, _ = st.columns([1, 1, 1, 3])
 
                         with b1:
