@@ -1254,7 +1254,7 @@ if show_all:
     st.markdown("<div style='height: 1rem;'></div>", unsafe_allow_html=True)
     st.markdown("---")
 
-    all_f1, all_f2 = st.columns([2, 3])
+    all_f1, all_f2, all_f3 = st.columns([2, 2, 3])
 
     with all_f1:
         status_options = df["Status"].dropna().unique().tolist()
@@ -1265,6 +1265,12 @@ if show_all:
             key="all_status_filter",
         )
     with all_f2:
+        all_category_filter = st.selectbox(
+            "Kategori",
+            options=["Semua", "Car Boot Sales", "F&B", "Food Truck", "Arts/Crafts & Others"],
+            key="all_category_filter",
+        )
+    with all_f3:
         all_search = st.text_input(
             "🔍 Cari (Plate / Nama / Telefon)",
             placeholder="Contoh: PJL3465 atau Cute Club",
@@ -1272,6 +1278,9 @@ if show_all:
         ).strip()
 
     filtered_all = df[df["Status"].isin(status_filter)]
+
+    if all_category_filter != "Semua":
+        filtered_all = filtered_all[filtered_all[COL_TYPE] == all_category_filter]
 
     if all_search:
         q = all_search.lower()
