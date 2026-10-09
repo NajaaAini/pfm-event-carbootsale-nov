@@ -1,6 +1,7 @@
 import streamlit as st
 import pandas as pd
 import re
+import time
 
 from streamlit_gsheets import GSheetsConnection
 from style import apply_style
@@ -285,7 +286,7 @@ st.caption(
 # LOAD VENDORS
 # ============================================================
 @st.cache_data(
-    ttl=60,
+    ttl=300,
     show_spinner="Memuatkan data..."
 )
 def load_vendors():
@@ -295,29 +296,38 @@ def load_vendors():
         type=GSheetsConnection
     )
 
-    try:
+    last_err = None
 
-        return (
-            conn.read(
-                worksheet="Vendors",
-                ttl=60
-            ),
-            None
-        )
+    for attempt in range(3):
 
-    except Exception as e:
+        try:
 
-        return (
-            None,
-            str(e)
-        )
+            return (
+                conn.read(
+                    worksheet="Vendors",
+                    ttl=300
+                ),
+                None
+            )
+
+        except Exception as e:
+
+            last_err = str(e)
+
+            if attempt < 2:
+                time.sleep(2)
+
+    return (
+        None,
+        last_err
+    )
 
 
 # ============================================================
 # LOAD PAYMENTS
 # ============================================================
 @st.cache_data(
-    ttl=60,
+    ttl=300,
     show_spinner=False
 )
 def load_payments():
@@ -327,22 +337,31 @@ def load_payments():
         type=GSheetsConnection
     )
 
-    try:
+    last_err = None
 
-        return (
-            conn.read(
-                worksheet="Payments",
-                ttl=60
-            ),
-            None
-        )
+    for attempt in range(3):
 
-    except Exception as e:
+        try:
 
-        return (
-            None,
-            str(e)
-        )
+            return (
+                conn.read(
+                    worksheet="Payments",
+                    ttl=300
+                ),
+                None
+            )
+
+        except Exception as e:
+
+            last_err = str(e)
+
+            if attempt < 2:
+                time.sleep(2)
+
+    return (
+        None,
+        last_err
+    )
 
 
 # ============================================================
@@ -366,10 +385,18 @@ if df is None:
             "Sila tunggu **1-2 minit** dan cuba lagi."
         )
 
-        if st.button("🔄 Cuba Lagi"):
+    elif (
+        "timeout" in error_msg
+        or "connection" in error_msg
+        or "timed out" in error_msg
+        or "connection out" in error_msg
+    ):
 
-            st.cache_data.clear()
-            st.rerun()
+        st.warning(
+            "🌐 **Masalah sambungan.** "
+            "Sistem tidak dapat akses data. "
+            "Sila cuba lagi sebentar."
+        )
 
     else:
 
@@ -383,6 +410,11 @@ if df is None:
         ):
 
             st.code(err)
+
+    if st.button("🔄 Cuba Lagi"):
+
+        st.cache_data.clear()
+        st.rerun()
 
     st.stop()
 
@@ -565,7 +597,10 @@ if submitted and query:
         # ====================================================
         # AMBIL INFO PAYMENT
         # ====================================================
-        payments_df, _ = load_payments()
+        payments_df, pay_err = load_payments()
+
+        if payments_df is None:
+            payments_df = pd.DataFrame()
 
         payment_info = (
             get_vendor_payment_info(
