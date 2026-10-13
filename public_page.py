@@ -349,6 +349,81 @@ def show_payment_dialog(row, plate, vendor_type, cat_price, deposit_amount, addo
 
 
 # ============================================================
+# POPUP — REJECT (Rejected)
+# ============================================================
+@st.dialog("✕ Permohonan Tidak Berjaya", width="large")
+def show_reject_dialog(row, plate, reject_reason):
+    """Popup untuk vendor yang direject — sama gaya dengan tahniah."""
+
+    # ---- Header ----
+    st.markdown(
+        "<div style='text-align:center; padding:0.5rem 0 1rem 0;'>"
+        "<div style='font-size:1.3rem; font-weight:700; color:#991b1b; "
+        "margin-top:0.5rem;'>Permohonan Tidak Berjaya</div>"
+        "<div style='font-size:0.85rem; color:#78716c; margin-top:0.35rem;'>"
+        "Maaf, permohonan anda tidak dapat diterima untuk event ini.</div>"
+        "</div>",
+        unsafe_allow_html=True,
+    )
+
+    # ---- Info vendor ----
+    cat_str = ""
+    if pd.notna(row.get(COL_CAT)) and str(row.get(COL_CAT)).strip():
+        cat_str = f" · {row[COL_CAT]}"
+
+    st.markdown(
+        f"<div style='background:#fef2f2; border:1px solid #fecaca; "
+        f"border-radius:10px; padding:0.8rem 1rem; margin:0.5rem 0;'>"
+        f"<div style='font-size:1rem; font-weight:700; color:#991b1b;'>"
+        f"🚗 {plate} — {row[COL_NAME]}</div>"
+        f"<div style='font-size:0.82rem; color:#7f1d1d; margin-top:0.2rem;'>"
+        f"{row[COL_TYPE]}{cat_str}</div>"
+        f"</div>",
+        unsafe_allow_html=True,
+    )
+
+    # ---- Ayat admin ----
+    if reject_reason:
+        st.markdown(
+            "<div style='font-size:0.72rem; color:#78716c; letter-spacing:0.04em; "
+            "font-weight:600; text-transform:uppercase; margin-top:0.75rem; "
+            "margin-bottom:0.35rem;'>📋 Mesej dari Admin</div>",
+            unsafe_allow_html=True,
+        )
+        st.markdown(
+            f"<div style='background:#fff7ed; border-left:4px solid #dc2626; "
+            f"border-radius:8px; padding:0.85rem 1rem; font-size:0.88rem; "
+            f"color:#44403c; white-space:pre-wrap; line-height:1.6;'>"
+            f"{reject_reason}</div>",
+            unsafe_allow_html=True,
+        )
+    else:
+        st.info(
+            "Hubungi admin untuk maklumat lanjut tentang sebab "
+            "permohonan anda tidak diterima."
+        )
+
+    st.markdown("<div style='height:0.75rem;'></div>", unsafe_allow_html=True)
+
+    # ---- Reminder WhatsApp Admin ----
+    st.info(
+        "📌 Kalau ada pertanyaan atau rayuan, sila hubungi admin melalui WhatsApp."
+    )
+
+    # ---- Butang WhatsApp Admin ----
+    st.link_button(
+        "💬 WhatsApp Admin",
+        WA_URL,
+        width="stretch",
+        type="primary",
+    )
+
+    # ---- Button tutup ----
+    if st.button("Tutup", width="stretch"):
+        st.rerun()
+
+
+# ============================================================
 # TITLE
 # ============================================================
 st.title("🔍 Semak Kelayakan")
@@ -558,13 +633,41 @@ if submitted and query:
 
         # ---- REJECTED ----
         elif status == "Rejected":
-            with st.container(border=True):
-                st.error("✕ **Permohonan Tidak Berjaya**")
-                st.caption("Hubungi admin untuk maklumat lanjut.")
-
             reject_reason = str(row.get("Notes", "") or "").strip()
+
+            # ---- POPUP REJECT (sekali sahaja per sesi) ----
+            reject_dialog_key = f"reject_shown_{plate_norm}"
+            if not st.session_state.get(reject_dialog_key, False):
+                st.session_state[reject_dialog_key] = True
+                show_reject_dialog(row, plate_norm, reject_reason)
+
+            # ---- Kad status (di belakang popup) ----
+            st.markdown(
+                "<div style='background:#fef2f2; border:2px solid #fecaca; "
+                "border-radius:10px; padding:1rem 1.25rem; margin:0.5rem 0;'>"
+                "<div style='font-size:1rem; font-weight:700; color:#991b1b; "
+                "margin-bottom:0.25rem;'>✕ Permohonan Tidak Berjaya</div>"
+                "<div style='font-size:0.85rem; color:#7f1d1d;'>"
+                "Maaf, permohonan anda tidak dapat diterima untuk event ini.</div>"
+                "</div>",
+                unsafe_allow_html=True,
+            )
+
+            # ---- Ayat admin (kalau ada) ----
             if reject_reason:
-                st.error(f"📋 **Sebab:** {reject_reason}")
+                st.markdown(
+                    "<div style='font-size:0.72rem; color:#78716c; letter-spacing:0.04em; "
+                    "font-weight:600; text-transform:uppercase; margin-top:0.75rem; "
+                    "margin-bottom:0.35rem;'>📋 Mesej dari Admin</div>",
+                    unsafe_allow_html=True,
+                )
+                st.markdown(
+                    f"<div style='background:#fff7ed; border-left:4px solid #dc2626; "
+                    f"border-radius:8px; padding:0.85rem 1rem; font-size:0.88rem; "
+                    f"color:#44403c; white-space:pre-wrap; line-height:1.6;'>"
+                    f"{reject_reason}</div>",
+                    unsafe_allow_html=True,
+                )
 
         # ---- CANCELLED ----
         elif status == "Cancelled":
