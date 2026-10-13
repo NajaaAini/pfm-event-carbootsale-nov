@@ -740,7 +740,6 @@ def confirm_reject_dialog(plate, vendor_name):
 
 @st.dialog("🚫 Reject Vendor (Belum Bayar)")
 def reject_unpaid_dialog(plate, vendor_name, vendor_type):
-    """Reject vendor yang dah approved tapi belum bayar — dengan ayat custom."""
     st.warning("Anda akan **reject** vendor yang belum bayar:")
     st.markdown(
         f"**No. Plate:** `{plate}`  \n"
