@@ -156,6 +156,28 @@ CAT_FB = "F&B"
 CAT_FT = "Food Truck"
 CAT_ARTS = "Arts/Crafts & Others"
 
+# ============================================================
+# REJECT NOTE TEMPLATES
+# ============================================================
+REJECT_TEMPLATES = {
+    "Deadline bayaran lepas": (
+        "Maaf, tempahan slot anda telah dibatalkan kerana bayaran tidak "
+        "diterima sebelum tarikh akhir yang ditetapkan. Slot anda kini "
+        "telah dibuka semula kepada vendor lain. Terima kasih atas "
+        "minat anda — semoga kita dapat bekerjasama pada event akan datang. 🙏"
+    ),
+    "Slot kategori penuh": (
+        "Maaf, slot untuk kategori anda telah penuh. Kami tidak dapat "
+        "menerima permohonan anda untuk event kali ini. Terima kasih "
+        "atas minat anda. 🙏"
+    ),
+    "Maklumat tidak lengkap": (
+        "Maaf, permohonan anda tidak dapat diproses kerana maklumat yang "
+        "diberikan tidak lengkap. Sila hubungi admin untuk maklumat lanjut. 🙏"
+    ),
+    "Custom (taip sendiri)": "",
+}
+
 
 # ============================================================
 # COLUMN RESOLVER — robust against whitespace/casing/BOM/newlines
@@ -716,6 +738,68 @@ def confirm_reject_dialog(plate, vendor_name):
             st.rerun()
 
 
+@st.dialog("🚫 Reject Vendor (Belum Bayar)")
+def reject_unpaid_dialog(plate, vendor_name, vendor_type):
+    """Reject vendor yang dah approved tapi belum bayar — dengan ayat custom."""
+    st.warning("Anda akan **reject** vendor yang belum bayar:")
+    st.markdown(
+        f"**No. Plate:** `{plate}`  \n"
+        f"**Nama:** {vendor_name}  \n"
+        f"**Kategori:** {vendor_type}"
+    )
+    st.markdown("---")
+
+    # Pilih template
+    template_choice = st.selectbox(
+        "Pilih template ayat:",
+        options=list(REJECT_TEMPLATES.keys()),
+        key=f"reject_tpl_{plate}",
+    )
+    default_text = REJECT_TEMPLATES.get(template_choice, "")
+
+    # Ayat untuk vendor
+    reject_note = st.text_area(
+        "Ayat untuk vendor (boleh edit):",
+        value=default_text,
+        height=160,
+        key=f"reject_note_{plate}",
+        help="Ayat ini akan dipaparkan kepada vendor di page Semak Kelayakan.",
+    )
+
+    # Preview macam vendor akan nampak
+    if reject_note.strip():
+        st.markdown("**Preview (macam vendor akan nampak):**")
+        st.markdown(
+            f"<div style='background:#fef2f2; border-left:4px solid #dc2626; "
+            f"padding:0.75rem 1rem; border-radius:8px; font-size:0.85rem; "
+            f"color:#7f1d1d; white-space:pre-wrap;'>"
+            f"<b>✕ Permohonan Tidak Berjaya</b><br><br>{reject_note}</div>",
+            unsafe_allow_html=True,
+        )
+
+    st.markdown("---")
+
+    col1, col2 = st.columns(2)
+    with col1:
+        if st.button("🚫 Ya, Reject", type="primary", width="stretch",
+                     key=f"dlg_reject_unpaid_yes_{plate}"):
+            if not reject_note.strip():
+                st.warning("⚠️ Sila masukkan ayat untuk vendor.")
+            else:
+                df.loc[df[COL_PLATE] == plate, "Status"] = "Rejected"
+                df.loc[df[COL_PLATE] == plate, "Notes"] = reject_note.strip()
+                safe_update(conn, df)
+                log_action(
+                    conn, ADMIN_NAME, "REJECT_UNPAID", plate,
+                    f"Tolak (belum bayar): {vendor_name}"
+                )
+                st.toast(f"🚫 {plate} telah direject", icon="🚫")
+                st.rerun()
+    with col2:
+        if st.button("Batal", width="stretch", key=f"dlg_reject_unpaid_no_{plate}"):
+            st.rerun()
+
+
 @st.dialog("Sahkan Pembatalan")
 def confirm_cancel_all_dialog(count):
     st.warning(f"Anda akan membatalkan **{count}** vendor yang belum bayar.")
@@ -966,9 +1050,46 @@ if show_section("2️⃣ Tarikh Akhir Bayaran"):
         expired = df[(df["Status"] == "Approved") & (~df["Paid"])]
         if not expired.empty:
             st.warning(f"{len(expired)} vendor belum membuat bayaran selepas tarikh akhir.")
+
             expired_display = expired[[COL_PLATE, COL_NAME, COL_PHONE, COL_TYPE, COL_CAT]].copy()
             expired_display[COL_PHONE] = expired_display[COL_PHONE].apply(format_phone_display)
             st.dataframe(_df_to_str(expired_display), hide_index=True, width="stretch")
+
+            # ---- Reject satu-satu dengan ayat custom ----
+            st.markdown("##### 🚫 Reject Vendor (Belum Bayar)")
+            st.caption(
+                "Pilih vendor → taip ayat → reject. Ayat akan muncul bila vendor semak."
+            )
+
+            reject_options = ["— Pilih vendor —"] + [
+                f"{row[COL_PLATE]} — {row[COL_NAME]}"
+                for _, row in expired.iterrows()
+            ]
+
+            rc1, rc2 = st.columns([3, 1])
+            with rc1:
+                reject_choice = st.selectbox(
+                    "Vendor",
+                    options=reject_options,
+                    key="reject_unpaid_select",
+                    label_visibility="collapsed",
+                )
+            with rc2:
+                if st.button("🚫 Reject", type="primary", width="stretch", key="reject_unpaid_btn"):
+                    if reject_choice and reject_choice != "— Pilih vendor —":
+                        plate_pick = reject_choice.split(" — ")[0]
+                        row_pick = expired[expired[COL_PLATE] == plate_pick].iloc[0]
+                        reject_unpaid_dialog(
+                            plate_pick,
+                            row_pick[COL_NAME],
+                            row_pick[COL_TYPE],
+                        )
+                    else:
+                        st.error("Sila pilih vendor.")
+
+            st.markdown("")
+
+            # ---- Cancel all (sedia ada) ----
             if st.button("Batalkan Semua Yang Belum Bayar", type="primary"):
                 confirm_cancel_all_dialog(len(expired))
         else:
@@ -1090,7 +1211,6 @@ if show_section("3️⃣ Permohonan Menunggu"):
                             unsafe_allow_html=True,
                         )
 
-                        # ---- SENARAI PRODUK ----
                         products_text = clean_products_str(row.get(products_col, "")) if products_col else ""
                         if products_text:
                             st.markdown(
@@ -1103,11 +1223,9 @@ if show_section("3️⃣ Permohonan Menunggu"):
                         else:
                             st.caption("🛍️ _(Tiada senarai produk diisi)_")
 
-                        # ---- TOTAL ----
                         v_total = get_vendor_total(v_type, row.get(COL_ADDON, ""))
                         st.caption(f"💰 Total: {format_rm(v_total)}")
 
-                        # ---- REMARK VENDOR ----
                         remark_text = clean_text(row.get(remark_col, "")) if remark_col else ""
                         st.markdown(
                             f"<div style='font-size:0.8rem; font-weight:600; color:#92400e; "
@@ -1123,7 +1241,6 @@ if show_section("3️⃣ Permohonan Menunggu"):
                         else:
                             st.caption("_(Tiada remark dari vendor)_")
 
-                        # ---- BUTTONS ----
                         b1, b2, b3, _ = st.columns([1, 1, 1, 3])
 
                         with b1:
@@ -1259,7 +1376,6 @@ if show_section("4️⃣ Rekod Bayaran"):
                 f"Tick kolum **Bayar** → klik **💾 Simpan Status Bayaran**."
             )
 
-            # Convert all columns except Bayar to string for Arrow-safe display
             for c in table_df.columns:
                 if c != "Bayar":
                     table_df[c] = table_df[c].astype(str)
@@ -1454,7 +1570,6 @@ if show_all:
                    [c for c in display_df.columns if c not in priority_cols]
     display_df = display_df[ordered_cols]
 
-    # Convert all columns to string for Arrow-safe display
     display_df = _df_to_str(display_df)
 
     table_height = min(max(len(display_df) * 35 + 45, 250), 600)
