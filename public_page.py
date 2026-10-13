@@ -405,19 +405,6 @@ def show_reject_dialog(row, plate, reject_reason):
 
     st.markdown("<div style='height:0.75rem;'></div>", unsafe_allow_html=True)
 
-    # ---- Reminder WhatsApp Admin ----
-    st.info(
-        "📌 Kalau ada pertanyaan atau rayuan, sila hubungi admin melalui WhatsApp."
-    )
-
-    # ---- Butang WhatsApp Admin ----
-    st.link_button(
-        "💬 WhatsApp Admin",
-        WA_URL,
-        width="stretch",
-        type="primary",
-    )
-
     # ---- Button tutup ----
     if st.button("Tutup", width="stretch"):
         st.rerun()
