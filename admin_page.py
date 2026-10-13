@@ -144,16 +144,10 @@ FB_CATEGORIES = [
     "Deep-Fry", "Italian/Western Food", "Japanese Food", "Chinese Food",
 ]
 
-COL_NAME = "Nama Perniagaan Syarikat"
-COL_PHONE = "Nombor Telefon/Phone Number"
-COL_TYPE = "Kategori Produk/Product Category"
-COL_CAT = "F&B CATEGORY"
-COL_PLATE = "Plate Number"
-COL_ADDON = "ADD ON"
-COL_PRODUCTS = "Senarai Produk yang Dijual"
-COL_REMARK = "Remark"
-
-PROOF_COL = "Upload Bukti Bayaran"
+# --- Column names will be resolved after df is loaded ---
+COL_NAME = COL_PHONE = COL_TYPE = COL_CAT = None
+COL_PLATE = COL_ADDON = COL_PRODUCTS = COL_REMARK = None
+PROOF_COL = None
 
 VALID_STATUSES = ["Pending", "Approved", "Rejected", "Cancelled"]
 
@@ -161,6 +155,49 @@ CAT_CARBOOT = "Car Boot Sales"
 CAT_FB = "F&B"
 CAT_FT = "Food Truck"
 CAT_ARTS = "Arts/Crafts & Others"
+
+
+# ============================================================
+# COLUMN RESOLVER — robust against whitespace/casing/BOM/newlines
+# ============================================================
+def _norm_key(s):
+    """Normalize a column name: keep only alphanumerics, lowercase."""
+    if s is None:
+        return ""
+    s = str(s).replace("\ufeff", "").replace("\u00a0", " ")
+    return re.sub(r"[^a-z0-9]", "", s.lower())
+
+
+def resolve_column(df_, exact_candidates, keywords=None, required=True, label=None):
+    """
+    1) Try exact (normalized) match against exact_candidates.
+    2) Fallback: match any column whose normalized name contains ALL keywords.
+    3) If still None and required → show friendly error + st.stop().
+    """
+    norm_map = {_norm_key(c): c for c in df_.columns}
+
+    for cand in exact_candidates:
+        k = _norm_key(cand)
+        if k in norm_map:
+            return norm_map[k]
+
+    if keywords:
+        kw = [_norm_key(k) for k in keywords]
+        for col in df_.columns:
+            n = _norm_key(col)
+            if all(k in n for k in kw):
+                return col
+
+    if required:
+        st.error(f"❌ Kolum tidak dijumpai: **{label or exact_candidates[0]}**")
+        st.write("**Kolum sebenar dalam sheet (repr):**")
+        st.write([repr(c) for c in df_.columns])
+        st.info(
+            "Buka `admin_page.py`, kemaskini senarai `exact_candidates` "
+            "untuk kolum ini supaya sepadan dengan nama di atas."
+        )
+        st.stop()
+    return None
 
 
 # ============================================================
@@ -362,6 +399,14 @@ def get_vendor_total(vendor_type, addon_str):
     return get_category_price(vendor_type) + get_deposit(vendor_type) + get_addon_price(addon_str)
 
 
+def _df_to_str(df_):
+    """Cast all columns to string for Arrow-safe display. Preserves dtype=object."""
+    out = df_.copy()
+    for c in out.columns:
+        out[c] = out[c].astype(str)
+    return out
+
+
 # ============================================================
 # SAMBUNGAN DATA
 # ============================================================
@@ -371,9 +416,49 @@ df = load_sheet_safe(conn, "Vendors", ttl=60)
 if df is None:
     st.stop()
 
+# ---- Resolve real column names (tolerates \n, spaces, BOM, case) ----
+COL_NAME     = resolve_column(df, ["Nama Perniagaan Syarikat", "Nama Perniagaan", "Business Name"],
+                              keywords=["nama", "perniagaan"])
+COL_PHONE    = resolve_column(df, ["Nombor Telefon/Phone Number", "Nombor Telefon", "Phone Number", "Telefon"],
+                              keywords=["telefon"])
+COL_TYPE     = resolve_column(df, ["Kategori Produk/Product Category", "Kategori Produk", "Product Category"],
+                              keywords=["kategori"])
+COL_CAT      = resolve_column(df, ["F&B CATEGORY", "FNB CATEGORY", "F&B Category"],
+                              keywords=["category"], required=False)
+COL_PLATE    = resolve_column(df, ["Plate Number", "No. Plate", "No Plate", "Nombor Plat"],
+                              keywords=["plate"])
+COL_ADDON    = resolve_column(df, ["ADD ON", "Add On", "Addon"],
+                              keywords=["addon"], required=False)
+COL_PRODUCTS = resolve_column(df, ["Senarai Produk yang Dijual", "Senarai Produk"],
+                              keywords=["senarai", "produk"], required=False)
+COL_REMARK   = resolve_column(df, ["Remark", "Remarks", "Catatan"],
+                              keywords=["remark"], required=False)
+PROOF_COL    = resolve_column(df, ["Upload Bukti Bayaran", "Bukti Bayaran"],
+                              keywords=["bukti"], required=False) or "Upload Bukti Bayaran"
+
+# Ensure optional columns exist so downstream code never KeyErrors
+if COL_CAT is None:
+    COL_CAT = "F&B CATEGORY"
+    df[COL_CAT] = ""
+if COL_ADDON is None:
+    COL_ADDON = "ADD ON"
+    df[COL_ADDON] = ""
+if COL_PRODUCTS is None:
+    COL_PRODUCTS = "Senarai Produk yang Dijual"
+    df[COL_PRODUCTS] = ""
+if COL_REMARK is None:
+    COL_REMARK = "Remark"
+    df[COL_REMARK] = ""
+
+# ---- Now safe to use ----
 df[COL_TYPE] = df[COL_TYPE].apply(normalize_type)
-df["Paid"] = df["Paid"].fillna(False).astype(bool)
-df["Status"] = df["Status"].apply(normalize_status)
+
+# Resolve Paid / Status (case-insensitive)
+_paid_col   = resolve_column(df, ["Paid", "PAID", "Bayar"], keywords=["paid"], required=False)
+_status_col = resolve_column(df, ["Status", "STATUS"], keywords=["status"], required=False)
+
+df["Paid"] = df[_paid_col].fillna(False).astype(bool) if _paid_col else False
+df["Status"] = df[_status_col].apply(normalize_status) if _status_col else "Pending"
 
 if COL_PHONE in df.columns:
     df[COL_PHONE] = df[COL_PHONE].apply(clean_phone_raw)
@@ -448,13 +533,7 @@ def get_vendor_payment_info(plate):
     col_ts      = _pick_col(payments_df, "Timestamp", "Tarikh")
     col_parking = _pick_col(payments_df, "Pilih parking lot", "Parking Lot", "Parking")
     col_fnb     = _pick_col(payments_df, "Pilih F&B Lot", "F&B Lot", "FNB Lot", "F&B")
-    col_ft      = _pick_col(
-        payments_df,
-        "Pilih Food Truck Lot",
-        "Food Truck Lot",
-        "Food Truck",
-        "FT Lot",
-    )
+    col_ft      = _pick_col(payments_df, "Pilih Food Truck Lot", "Food Truck Lot", "Food Truck", "FT Lot")
     col_arts    = _pick_col(
         payments_df,
         "Pilih Arts/Crafts & Others Lot",
@@ -587,7 +666,7 @@ def confirm_approve_dialog(plate, vendor_name):
 
     col1, col2 = st.columns(2)
     with col1:
-        if st.button("Ya, Luluskan", type="primary", use_container_width=True, key="dlg_approve_yes"):
+        if st.button("Ya, Luluskan", type="primary", width="stretch", key="dlg_approve_yes"):
             df.loc[df[COL_PLATE] == plate, "Status"] = "Approved"
             df.loc[df[COL_PLATE] == plate, "Notes"] = admin_note.strip()
             safe_update(conn, df)
@@ -595,7 +674,7 @@ def confirm_approve_dialog(plate, vendor_name):
             st.toast(f"✅ {plate} telah diluluskan", icon="✅")
             st.rerun()
     with col2:
-        if st.button("Batal", use_container_width=True, key="dlg_approve_no"):
+        if st.button("Batal", width="stretch", key="dlg_approve_no"):
             st.rerun()
 
 
@@ -621,7 +700,7 @@ def confirm_reject_dialog(plate, vendor_name):
 
     col1, col2 = st.columns(2)
     with col1:
-        if st.button("Ya, Tolak", type="primary", use_container_width=True, key="dlg_reject_yes"):
+        if st.button("Ya, Tolak", type="primary", width="stretch", key="dlg_reject_yes"):
             if not reject_reason.strip():
                 st.warning("⚠️ Sila masukkan sebab penolakan.")
             else:
@@ -633,7 +712,7 @@ def confirm_reject_dialog(plate, vendor_name):
                 st.toast(f"❌ {plate} telah ditolak", icon="❌")
                 st.rerun()
     with col2:
-        if st.button("Batal", use_container_width=True, key="dlg_reject_no"):
+        if st.button("Batal", width="stretch", key="dlg_reject_no"):
             st.rerun()
 
 
@@ -643,14 +722,14 @@ def confirm_cancel_all_dialog(count):
     st.write("Tindakan ini tidak boleh diundur.")
     col1, col2 = st.columns(2)
     with col1:
-        if st.button("Ya, Batalkan Semua", type="primary", use_container_width=True, key="dlg_cancel_yes"):
+        if st.button("Ya, Batalkan Semua", type="primary", width="stretch", key="dlg_cancel_yes"):
             df.loc[(df["Status"] == "Approved") & (~df["Paid"]), "Status"] = "Cancelled"
             safe_update(conn, df)
             log_action(conn, ADMIN_NAME, "CANCEL_ALL", "-", f"{count} vendor dibatalkan")
             st.toast(f"✅ {count} vendor telah dibatalkan", icon="✅")
             st.rerun()
     with col2:
-        if st.button("Batal", use_container_width=True, key="dlg_cancel_no"):
+        if st.button("Batal", width="stretch", key="dlg_cancel_no"):
             st.rerun()
 
 
@@ -690,7 +769,7 @@ def edit_vendor_dialog(plate):
 
     col1, col2 = st.columns(2)
     with col1:
-        if st.button("Simpan", type="primary", use_container_width=True, key="edit_save"):
+        if st.button("Simpan", type="primary", width="stretch", key="edit_save"):
             idx = df[df[COL_PLATE] == plate].index[0]
             df.at[idx, COL_NAME] = new_name
             df.at[idx, COL_PHONE] = clean_phone_raw(new_phone)
@@ -703,7 +782,7 @@ def edit_vendor_dialog(plate):
             st.toast(f"✅ {plate} telah dikemaskini", icon="✅")
             st.rerun()
     with col2:
-        if st.button("Batal", use_container_width=True, key="edit_cancel"):
+        if st.button("Batal", width="stretch", key="edit_cancel"):
             st.rerun()
 
 
@@ -720,7 +799,7 @@ def confirm_delete_dialog(plate, vendor_name, row_signature):
 
     col1, col2 = st.columns(2)
     with col1:
-        if st.button("Ya, Padam", type="primary", use_container_width=True, key="dlg_delete_yes"):
+        if st.button("Ya, Padam", type="primary", width="stretch", key="dlg_delete_yes"):
             global df
             matched_idx = None
             for i, r in df.iterrows():
@@ -740,7 +819,7 @@ def confirm_delete_dialog(plate, vendor_name, row_signature):
                 st.error("❌ Baris tidak dijumpai — mungkin sudah dipadam.")
 
     with col2:
-        if st.button("Batal", use_container_width=True, key="dlg_delete_no"):
+        if st.button("Batal", width="stretch", key="dlg_delete_no"):
             st.rerun()
 
 
@@ -867,7 +946,7 @@ if show_section("1️⃣ Dashboard"):
         })
 
     fb_df = pd.DataFrame(rows)
-    st.dataframe(fb_df, hide_index=True, use_container_width=True)
+    st.dataframe(_df_to_str(fb_df), hide_index=True, width="stretch")
 
     st.divider()
 
@@ -889,7 +968,7 @@ if show_section("2️⃣ Tarikh Akhir Bayaran"):
             st.warning(f"{len(expired)} vendor belum membuat bayaran selepas tarikh akhir.")
             expired_display = expired[[COL_PLATE, COL_NAME, COL_PHONE, COL_TYPE, COL_CAT]].copy()
             expired_display[COL_PHONE] = expired_display[COL_PHONE].apply(format_phone_display)
-            st.dataframe(expired_display, hide_index=True, use_container_width=True)
+            st.dataframe(_df_to_str(expired_display), hide_index=True, width="stretch")
             if st.button("Batalkan Semua Yang Belum Bayar", type="primary"):
                 confirm_cancel_all_dialog(len(expired))
         else:
@@ -1048,13 +1127,13 @@ if show_section("3️⃣ Permohonan Menunggu"):
                         b1, b2, b3, _ = st.columns([1, 1, 1, 3])
 
                         with b1:
-                            if st.button("✓ Lulus", type="primary", use_container_width=True, key=f"approve_{plate}_{idx}"):
+                            if st.button("✓ Lulus", type="primary", width="stretch", key=f"approve_{plate}_{idx}"):
                                 confirm_approve_dialog(plate, name)
                         with b2:
-                            if st.button("✗ Tolak", use_container_width=True, key=f"reject_{plate}_{idx}"):
+                            if st.button("✗ Tolak", width="stretch", key=f"reject_{plate}_{idx}"):
                                 confirm_reject_dialog(plate, name)
                         with b3:
-                            if st.button("✎ Edit", use_container_width=True, key=f"edit_{plate}_{idx}"):
+                            if st.button("✎ Edit", width="stretch", key=f"edit_{plate}_{idx}"):
                                 edit_vendor_dialog(plate)
 
     st.divider()
@@ -1180,7 +1259,7 @@ if show_section("4️⃣ Rekod Bayaran"):
                 f"Tick kolum **Bayar** → klik **💾 Simpan Status Bayaran**."
             )
 
-            # === FIX: convert semua column ke string kecuali Bayar ===
+            # Convert all columns except Bayar to string for Arrow-safe display
             for c in table_df.columns:
                 if c != "Bayar":
                     table_df[c] = table_df[c].astype(str)
@@ -1192,7 +1271,7 @@ if show_section("4️⃣ Rekod Bayaran"):
             edited = st.data_editor(
                 table_df,
                 hide_index=True,
-                use_container_width=True,
+                width="stretch",
                 height=table_height,
                 disabled=["Plate", "Nama", "Telefon", "Kategori", "F&B Category",
                           "Lot", "Total", "Timestamp", "Bukti", "Link"],
@@ -1213,7 +1292,7 @@ if show_section("4️⃣ Rekod Bayaran"):
             )
 
             st.markdown("")
-            if st.button("💾 Simpan Status Bayaran", type="primary", use_container_width=False):
+            if st.button("💾 Simpan Status Bayaran", type="primary", width="content"):
                 with st.spinner("Menyimpan..."):
                     changed = 0
                     for _, r in edited.iterrows():
@@ -1375,11 +1454,11 @@ if show_all:
                    [c for c in display_df.columns if c not in priority_cols]
     display_df = display_df[ordered_cols]
 
-    # === FIX: convert semua column ke string untuk elak ArrowTypeError ===
-    display_df = display_df.astype(str)
+    # Convert all columns to string for Arrow-safe display
+    display_df = _df_to_str(display_df)
 
     table_height = min(max(len(display_df) * 35 + 45, 250), 600)
-    st.dataframe(display_df, hide_index=True, use_container_width=True, height=table_height)
+    st.dataframe(display_df, hide_index=True, width="stretch", height=table_height)
 
     st.markdown("<div style='height: 1rem;'></div>", unsafe_allow_html=True)
 
@@ -1404,7 +1483,7 @@ if show_all:
             label_visibility="collapsed",
         )
     with act_col2:
-        if st.button("🗑️ Padam", type="primary", use_container_width=True):
+        if st.button("🗑️ Padam", type="primary", width="stretch"):
             if delete_choice and delete_choice != "— Pilih baris —":
                 idx_pick = delete_options.index(delete_choice) - 1
                 row_pick = display_df_reset.iloc[idx_pick]
@@ -1427,4 +1506,5 @@ if show_all:
         data=csv_all,
         file_name=f"vendors_{datetime.now().strftime('%Y%m%d_%H%M')}.csv",
         mime="text/csv",
+        width="content",
     )
