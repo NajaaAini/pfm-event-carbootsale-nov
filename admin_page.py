@@ -10,109 +10,276 @@ st.set_page_config(page_title="Admin Panel", layout="wide", initial_sidebar_stat
 apply_style()
 
 # ============================================================
-# CUSTOM CSS
+# PROFESSIONAL CSS
 # ============================================================
 st.markdown("""
 <style>
+    /* ---------- TYPOGRAPHY ---------- */
     html, body, [class*="css"] {
-        font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+        font-family: 'Inter', -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+        -webkit-font-smoothing: antialiased;
+        -moz-osx-font-smoothing: grayscale;
     }
 
     :root {
-        --brand: #78350f;
-        --brand-soft: #f2ebe0;
-        --border: #e5e5e5;
-        --text: #1c1917;
-        --muted: #78716c;
-        --bg-card: #ffffff;
+        --brand-900: #431407;
+        --brand-800: #78350f;
+        --brand-700: #92400e;
+        --brand-100: #fef3c7;
+        --brand-50: #fffbeb;
+        --neutral-900: #0c0a09;
+        --neutral-800: #1c1917;
+        --neutral-700: #292524;
+        --neutral-500: #78716c;
+        --neutral-300: #d6d3d1;
+        --neutral-200: #e7e5e4;
+        --neutral-100: #f5f5f4;
+        --neutral-50: #fafaf9;
+        --success: #16a34a;
+        --success-bg: #f0fdf4;
+        --warning: #d97706;
+        --warning-bg: #fffbeb;
+        --danger: #dc2626;
+        --danger-bg: #fef2f2;
+        --info: #2563eb;
+        --info-bg: #eff6ff;
+        --radius: 10px;
+        --radius-sm: 6px;
+        --shadow-sm: 0 1px 2px rgba(0,0,0,0.04);
+        --shadow-md: 0 2px 4px rgba(0,0,0,0.06), 0 1px 2px rgba(0,0,0,0.04);
     }
 
+    /* ---------- LAYOUT ---------- */
     .block-container {
-        padding-top: 1.5rem !important;
-        padding-bottom: 2rem !important;
-        max-width: 1400px;
+        padding-top: 2rem !important;
+        padding-bottom: 3rem !important;
+        max-width: 1440px;
     }
 
-    [data-testid="stMetric"] {
-        background: var(--bg-card);
-        border: 1px solid var(--border);
-        border-radius: 12px;
-        padding: 1rem 1.25rem;
-    }
-    [data-testid="stMetricLabel"] {
-        font-size: 0.8rem !important;
-        color: var(--muted) !important;
-        text-transform: uppercase;
-        letter-spacing: 0.04em;
-    }
-    [data-testid="stMetricValue"] {
-        font-size: 1.6rem !important;
-        font-weight: 600 !important;
-    }
-
+    /* ---------- SECTION HEADERS ---------- */
     .section-title {
-        font-size: 1.35rem;
-        font-weight: 600;
-        color: var(--text);
-        margin: 0 0 0.25rem 0;
+        font-size: 1.5rem;
+        font-weight: 700;
+        color: var(--neutral-900);
+        margin: 0 0 0.35rem 0;
+        letter-spacing: -0.02em;
+        line-height: 1.2;
     }
     .section-sub {
-        font-size: 0.85rem;
-        color: var(--muted);
-        margin: 0 0 1.25rem 0;
+        font-size: 0.875rem;
+        color: var(--neutral-500);
+        margin: 0 0 1.75rem 0;
+        line-height: 1.5;
     }
 
+    /* ---------- METRIC CARDS ---------- */
+    [data-testid="stMetric"] {
+        background: #ffffff;
+        border: 1px solid var(--neutral-200);
+        border-radius: var(--radius);
+        padding: 1.1rem 1.25rem;
+        box-shadow: var(--shadow-sm);
+        transition: box-shadow 0.15s ease;
+    }
+    [data-testid="stMetric"]:hover {
+        box-shadow: var(--shadow-md);
+    }
+    [data-testid="stMetricLabel"] {
+        font-size: 0.7rem !important;
+        color: var(--neutral-500) !important;
+        text-transform: uppercase;
+        letter-spacing: 0.06em;
+        font-weight: 600 !important;
+    }
+    [data-testid="stMetricValue"] {
+        font-size: 1.75rem !important;
+        font-weight: 700 !important;
+        color: var(--neutral-900) !important;
+        letter-spacing: -0.02em;
+    }
+
+    /* ---------- BUTTONS ---------- */
+    .stButton > button,
+    .stDownloadButton > button,
+    .stLinkButton > a {
+        border-radius: var(--radius-sm) !important;
+        font-weight: 600 !important;
+        font-size: 0.85rem !important;
+        padding: 0.5rem 1rem !important;
+        border: 1px solid var(--neutral-300) !important;
+        transition: all 0.15s ease !important;
+        letter-spacing: 0.01em;
+    }
+    .stButton > button:hover,
+    .stDownloadButton > button:hover,
+    .stLinkButton > a:hover {
+        transform: translateY(-1px);
+        box-shadow: var(--shadow-md) !important;
+    }
+    .stButton > button[kind="primary"],
+    .stDownloadButton > button[kind="primary"],
+    .stLinkButton > a[kind="primary"] {
+        background: var(--brand-800) !important;
+        color: #ffffff !important;
+        border: none !important;
+    }
+    .stButton > button[kind="primary"]:hover {
+        background: var(--brand-900) !important;
+    }
+
+    /* ---------- CONTAINERS / BOXES ---------- */
     .product-box {
-        background: #fafaf9;
-        border-left: 3px solid #78350f;
-        border-radius: 6px;
-        padding: 0.6rem 0.85rem;
+        background: var(--neutral-50);
+        border-left: 3px solid var(--brand-800);
+        border-radius: var(--radius-sm);
+        padding: 0.7rem 0.9rem;
         margin: 0.5rem 0 0.6rem 0;
         font-size: 0.85rem;
-        color: #44403c;
+        color: var(--neutral-700);
         white-space: pre-wrap;
-        line-height: 1.45;
+        line-height: 1.55;
     }
 
     .remark-box {
-        background: #fef3c7;
-        border-left: 3px solid #92400e;
-        border-radius: 6px;
-        padding: 0.6rem 0.85rem;
+        background: var(--warning-bg);
+        border-left: 3px solid var(--warning);
+        border-radius: var(--radius-sm);
+        padding: 0.7rem 0.9rem;
         margin: 0.5rem 0 0.6rem 0;
         font-size: 0.85rem;
-        color: #44403c;
+        color: var(--neutral-700);
         white-space: pre-wrap;
-        line-height: 1.45;
+        line-height: 1.55;
     }
 
-    .stButton > button {
-        border-radius: 8px !important;
-        font-weight: 500 !important;
-        font-size: 0.85rem !important;
-        border: 1px solid var(--border) !important;
-    }
-    .stButton > button[kind="primary"] {
-        background: var(--brand) !important;
-        color: white !important;
-        border: none !important;
-    }
-
+    /* ---------- DATAFRAME ---------- */
     [data-testid="stDataFrame"] {
-        border: 1px solid var(--border);
-        border-radius: 10px;
+        border: 1px solid var(--neutral-200);
+        border-radius: var(--radius);
         overflow: hidden;
+        box-shadow: var(--shadow-sm);
+    }
+    [data-testid="stDataFrame"] [role="columnheader"] {
+        background: var(--neutral-50) !important;
+        font-weight: 600 !important;
+        font-size: 0.78rem !important;
+        color: var(--neutral-700) !important;
+        text-transform: uppercase;
+        letter-spacing: 0.03em;
     }
 
+    /* ---------- DIVIDER ---------- */
     hr {
-        margin: 1.25rem 0 !important;
-        border-color: var(--border) !important;
+        margin: 2rem 0 !important;
+        border-color: var(--neutral-200) !important;
+        border-width: 1px !important;
     }
 
+    /* ---------- SIDEBAR ---------- */
     [data-testid="stSidebar"] {
-        background: #fafaf9;
-        border-right: 1px solid var(--border);
+        background: var(--neutral-50);
+        border-right: 1px solid var(--neutral-200);
     }
+    [data-testid="stSidebar"] .stRadio > label {
+        font-size: 0.75rem !important;
+        color: var(--neutral-500) !important;
+        text-transform: uppercase;
+        letter-spacing: 0.06em;
+        font-weight: 600;
+    }
+    [data-testid="stSidebar"] .stRadio [role="radiogroup"] label {
+        padding: 0.6rem 0.75rem;
+        border-radius: var(--radius-sm);
+        transition: background 0.15s ease;
+        font-weight: 500;
+    }
+    [data-testid="stSidebar"] .stRadio [role="radiogroup"] label:hover {
+        background: var(--neutral-100);
+    }
+    [data-testid="stSidebar"] .stRadio [role="radiogroup"] label[data-checked="true"] {
+        background: var(--brand-50);
+        color: var(--brand-800);
+        font-weight: 600;
+    }
+
+    /* ---------- INPUTS ---------- */
+    .stTextInput > div > div > input,
+    .stSelectbox > div > div > div,
+    .stMultiSelect > div > div > div,
+    .stTextArea > div > div > textarea {
+        border-radius: var(--radius-sm) !important;
+        border-color: var(--neutral-300) !important;
+        font-size: 0.88rem !important;
+    }
+    .stTextInput > div > div > input:focus,
+    .stSelectbox > div > div > div:focus-within,
+    .stTextArea > div > div > textarea:focus {
+        border-color: var(--brand-800) !important;
+        box-shadow: 0 0 0 3px rgba(120, 53, 15, 0.1) !important;
+    }
+
+    /* ---------- ALERTS ---------- */
+    [data-testid="stAlert"] {
+        border-radius: var(--radius-sm);
+        border: none;
+        font-size: 0.88rem;
+    }
+
+    /* ---------- PROGRESS ---------- */
+    .stProgress > div > div > div > div {
+        background: var(--brand-800);
+    }
+
+    /* ---------- EXPANDER ---------- */
+    .streamlit-expanderHeader {
+        font-weight: 600 !important;
+        font-size: 0.88rem !important;
+        color: var(--neutral-700) !important;
+        border-radius: var(--radius-sm) !important;
+    }
+
+    /* ---------- DIALOG ---------- */
+    [data-testid="stDialog"] > div {
+        border-radius: var(--radius);
+        box-shadow: 0 20px 25px -5px rgba(0,0,0,0.1), 0 10px 10px -5px rgba(0,0,0,0.04);
+    }
+    [data-testid="stDialog"] h2 {
+        font-size: 1.15rem !important;
+        font-weight: 700 !important;
+        color: var(--neutral-900) !important;
+        letter-spacing: -0.01em;
+    }
+
+    /* ---------- TABS ---------- */
+    .stTabs [data-baseweb="tab-list"] {
+        gap: 0.25rem;
+        border-bottom: 1px solid var(--neutral-200);
+    }
+    .stTabs [data-baseweb="tab"] {
+        font-weight: 600;
+        font-size: 0.85rem;
+        padding: 0.6rem 1rem;
+    }
+    .stTabs [aria-selected="true"] {
+        color: var(--brand-800) !important;
+        border-bottom-color: var(--brand-800) !important;
+    }
+
+    /* ---------- BADGE HELPER ---------- */
+    .badge {
+        display: inline-block;
+        padding: 0.2rem 0.6rem;
+        border-radius: 999px;
+        font-size: 0.72rem;
+        font-weight: 700;
+        letter-spacing: 0.03em;
+        text-transform: uppercase;
+    }
+    .badge-success { background: var(--success-bg); color: var(--success); }
+    .badge-warning { background: var(--warning-bg); color: var(--warning); }
+    .badge-danger  { background: var(--danger-bg);  color: var(--danger); }
+    .badge-info    { background: var(--info-bg);    color: var(--info); }
+    .badge-neutral { background: var(--neutral-100); color: var(--neutral-700); }
 </style>
 """, unsafe_allow_html=True)
 
@@ -180,10 +347,9 @@ REJECT_TEMPLATES = {
 
 
 # ============================================================
-# COLUMN RESOLVER — robust against whitespace/casing/BOM/newlines
+# COLUMN RESOLVER
 # ============================================================
 def _norm_key(s):
-    """Normalize a column name: keep only alphanumerics, lowercase."""
     if s is None:
         return ""
     s = str(s).replace("\ufeff", "").replace("\u00a0", " ")
@@ -191,11 +357,6 @@ def _norm_key(s):
 
 
 def resolve_column(df_, exact_candidates, keywords=None, required=True, label=None):
-    """
-    1) Try exact (normalized) match against exact_candidates.
-    2) Fallback: match any column whose normalized name contains ALL keywords.
-    3) If still None and required → show friendly error + st.stop().
-    """
     norm_map = {_norm_key(c): c for c in df_.columns}
 
     for cand in exact_candidates:
@@ -382,7 +543,6 @@ def format_rm(amount):
 
 
 def format_timestamp_display(raw):
-    """Tukar timestamp dari Google Form jadi format yang senang baca."""
     if raw is None or pd.isna(raw):
         return "—"
     s = str(raw).strip()
@@ -390,15 +550,9 @@ def format_timestamp_display(raw):
         return "—"
 
     formats = [
-        "%d/%m/%Y %H:%M:%S",
-        "%m/%d/%Y %H:%M:%S",
-        "%Y-%m-%d %H:%M:%S",
-        "%d/%m/%Y %H:%M",
-        "%m/%d/%Y %H:%M",
-        "%Y-%m-%d %H:%M",
-        "%d/%m/%Y",
-        "%m/%d/%Y",
-        "%Y-%m-%d",
+        "%d/%m/%Y %H:%M:%S", "%m/%d/%Y %H:%M:%S", "%Y-%m-%d %H:%M:%S",
+        "%d/%m/%Y %H:%M", "%m/%d/%Y %H:%M", "%Y-%m-%d %H:%M",
+        "%d/%m/%Y", "%m/%d/%Y", "%Y-%m-%d",
     ]
     for fmt in formats:
         try:
@@ -422,7 +576,6 @@ def get_vendor_total(vendor_type, addon_str):
 
 
 def _df_to_str(df_):
-    """Cast all columns to string for Arrow-safe display. Preserves dtype=object."""
     out = df_.copy()
     for c in out.columns:
         out[c] = out[c].astype(str)
@@ -438,7 +591,6 @@ df = load_sheet_safe(conn, "Vendors", ttl=60)
 if df is None:
     st.stop()
 
-# ---- Resolve real column names (tolerates \n, spaces, BOM, case) ----
 COL_NAME     = resolve_column(df, ["Nama Perniagaan Syarikat", "Nama Perniagaan", "Business Name"],
                               keywords=["nama", "perniagaan"])
 COL_PHONE    = resolve_column(df, ["Nombor Telefon/Phone Number", "Nombor Telefon", "Phone Number", "Telefon"],
@@ -458,7 +610,6 @@ COL_REMARK   = resolve_column(df, ["Remark", "Remarks", "Catatan"],
 PROOF_COL    = resolve_column(df, ["Upload Bukti Bayaran", "Bukti Bayaran"],
                               keywords=["bukti"], required=False) or "Upload Bukti Bayaran"
 
-# Ensure optional columns exist so downstream code never KeyErrors
 if COL_CAT is None:
     COL_CAT = "F&B CATEGORY"
     df[COL_CAT] = ""
@@ -472,10 +623,8 @@ if COL_REMARK is None:
     COL_REMARK = "Remark"
     df[COL_REMARK] = ""
 
-# ---- Now safe to use ----
 df[COL_TYPE] = df[COL_TYPE].apply(normalize_type)
 
-# Resolve Paid / Status (case-insensitive)
 _paid_col   = resolve_column(df, ["Paid", "PAID", "Bayar"], keywords=["paid"], required=False)
 _status_col = resolve_column(df, ["Status", "STATUS"], keywords=["status"], required=False)
 
@@ -625,15 +774,17 @@ def safe_update(conn, df):
 # ============================================================
 with st.sidebar:
     st.markdown(
-        "<div style='padding: 0.5rem 0 1rem 0;'>"
-        "<div style='font-size: 1.05rem; font-weight: 600; color: #1c1917;'>Admin Panel</div>"
-        "<div style='font-size: 0.78rem; color: #78716c; margin-top: 0.15rem;'>Event Vendor Manager</div>"
+        "<div style='padding: 0.5rem 0 1.25rem 0;'>"
+        "<div style='font-size: 1.1rem; font-weight: 700; color: #0c0a09; "
+        "letter-spacing: -0.02em;'>Admin Panel</div>"
+        "<div style='font-size: 0.75rem; color: #78716c; margin-top: 0.2rem; "
+        "letter-spacing: 0.02em;'>Event Vendor Manager</div>"
         "</div>",
         unsafe_allow_html=True,
     )
     st.markdown("---")
     section = st.radio(
-        "Pergi ke:",
+        "NAVIGASI",
         options=[
             "🏠 Semua Section",
             "1️⃣ Dashboard",
@@ -641,7 +792,7 @@ with st.sidebar:
             "3️⃣ Pendaftaran Baru",
             "4️⃣ Rekod Bayaran",
         ],
-        label_visibility="collapsed",
+        label_visibility="visible",
         key="admin_nav",
     )
     st.markdown("---")
@@ -738,14 +889,8 @@ def confirm_reject_dialog(plate, vendor_name):
             st.rerun()
 
 
-# ============================================================
-# POPUP REJECT — Gaya sama dengan "Tahniah"
-# ============================================================
 @st.dialog("🚫 Reject Vendor (Belum Bayar)", width="large")
 def reject_unpaid_dialog(plate, vendor_name, vendor_type):
-    """Popup reject — sama gaya dengan popup tahniah."""
-
-    # ---- Header ----
     st.markdown(
         "<div style='text-align:center; padding:0.5rem 0 1rem 0;'>"
         "<div style='font-size:3rem; line-height:1;'>🚫</div>"
@@ -757,7 +902,6 @@ def reject_unpaid_dialog(plate, vendor_name, vendor_type):
         unsafe_allow_html=True,
     )
 
-    # ---- Info vendor ----
     st.markdown(
         f"<div style='background:#fef2f2; border:1px solid #fecaca; "
         f"border-radius:10px; padding:0.8rem 1rem; margin:0.5rem 0;'>"
@@ -771,7 +915,6 @@ def reject_unpaid_dialog(plate, vendor_name, vendor_type):
 
     st.markdown("")
 
-    # ---- Pilih template ----
     template_choice = st.selectbox(
         "Pilih template ayat:",
         options=list(REJECT_TEMPLATES.keys()),
@@ -779,7 +922,6 @@ def reject_unpaid_dialog(plate, vendor_name, vendor_type):
     )
     default_text = REJECT_TEMPLATES.get(template_choice, "")
 
-    # ---- Ayat ----
     reject_note = st.text_area(
         "Ayat untuk vendor (boleh edit):",
         value=default_text,
@@ -788,10 +930,8 @@ def reject_unpaid_dialog(plate, vendor_name, vendor_type):
         help="Ayat ini akan dipaparkan di page Semak Kelayakan.",
     )
 
-
     st.markdown("---")
 
-    # ---- Buttons ----
     col1, col2 = st.columns(2)
     with col1:
         if st.button("🚫 Ya, Reject", type="primary", width="stretch",
@@ -921,7 +1061,7 @@ def confirm_delete_dialog(plate, vendor_name, row_signature):
 
 
 # ============================================================
-# 📞 WHATSAPP GROUP
+# WHATSAPP GROUP BANNER
 # ============================================================
 try:
     wa_group = st.secrets["event"]["whatsapp_group"]
@@ -931,29 +1071,35 @@ except Exception:
 if wa_group:
     st.markdown(f"""
     <div style="
-        background: linear-gradient(135deg, #f2ebe0 0%, #faf5ec 100%);
-        border: 1px solid #e8dcc7;
+        background: linear-gradient(135deg, #fffbeb 0%, #fef3c7 100%);
+        border: 1px solid #fde68a;
         border-radius: 12px;
         padding: 1rem 1.25rem;
-        margin-bottom: 1.5rem;
+        margin-bottom: 2rem;
         display: flex;
         justify-content: space-between;
         align-items: center;
         gap: 1rem;
+        box-shadow: 0 1px 2px rgba(0,0,0,0.04);
     ">
         <div>
-            <div style="font-weight: 600; color: #292524; font-size: 0.95rem;">💬 WhatsApp Group Vendor</div>
-            <div style="color: #78716c; font-size: 0.82rem; margin-top: 0.2rem;">Hantar mesej terus dalam group</div>
+            <div style="font-weight: 700; color: #0c0a09; font-size: 0.95rem; letter-spacing: -0.01em;">
+                💬 WhatsApp Group Vendor
+            </div>
+            <div style="color: #78350f; font-size: 0.82rem; margin-top: 0.25rem;">
+                Hantar mesej terus dalam group
+            </div>
         </div>
         <a href="{wa_group}" target="_blank" style="
             background-color: #78350f;
             color: #ffffff;
-            padding: 0.55rem 1.1rem;
+            padding: 0.55rem 1.15rem;
             border-radius: 8px;
             text-decoration: none;
-            font-weight: 500;
+            font-weight: 600;
             font-size: 0.85rem;
             white-space: nowrap;
+            transition: all 0.15s ease;
         ">Buka Group →</a>
     </div>
     """, unsafe_allow_html=True)
@@ -1016,13 +1162,14 @@ if show_section("1️⃣ Dashboard"):
         st.caption("**Total**")
         st.progress(min(total_committed / total_limit, 1.0), text=f"{total_committed}/{total_limit}")
 
+    st.markdown("")
     st.caption(
         f"📅 Event: **{EVENT_DATE.strftime('%d %b %Y')}** &nbsp;·&nbsp; "
         f"✅ Approved &nbsp;·&nbsp; ⏳ Pending"
     )
 
     st.markdown("---")
-    st.markdown(f"#### Pecahan Kategori F&B")
+    st.markdown("#### Pecahan Kategori F&B")
     st.caption(f"Had: **{FB_CATEGORY_LIMIT}** vendor per kategori")
 
     rows = []
@@ -1064,7 +1211,6 @@ if show_section("2️⃣ Tarikh Akhir Bayaran"):
     today = date.today()
     days_left = (cutoff_date - today).days
 
-    # ---- Info kecil (bukan blocker) ----
     if today > cutoff_date:
         st.caption(f"⚠️ Deadline telah berlalu ({abs(days_left)} hari lepas)")
     else:
@@ -1072,7 +1218,6 @@ if show_section("2️⃣ Tarikh Akhir Bayaran"):
 
     st.markdown("")
 
-    # ---- Filter kategori produk ----
     filter_col1, _ = st.columns([1, 3])
     with filter_col1:
         unpaid_category_filter = st.selectbox(
@@ -1081,7 +1226,6 @@ if show_section("2️⃣ Tarikh Akhir Bayaran"):
             key="unpaid_category_filter",
         )
 
-    # ---- Senarai vendor belum bayar (dengan filter) ----
     unpaid = df[(df["Status"] == "Approved") & (~df["Paid"])]
 
     if unpaid_category_filter != "Semua":
@@ -1098,7 +1242,6 @@ if show_section("2️⃣ Tarikh Akhir Bayaran"):
 
         st.markdown("")
 
-        # ---- Reject satu-satu ----
         st.markdown("##### 🚫 Reject Vendor (Belum Bayar)")
         st.caption("Pilih vendor → taip ayat → reject. Ayat akan muncul bila vendor semak.")
 
@@ -1130,7 +1273,6 @@ if show_section("2️⃣ Tarikh Akhir Bayaran"):
 
         st.markdown("")
 
-        # ---- Cancel all (bulk) ----
         if st.button(
             f"Batalkan Semua Yang Belum Bayar ({len(unpaid)})",
             type="secondary",
@@ -1157,10 +1299,10 @@ if show_section("3️⃣ Permohonan Menunggu"):
         st.markdown(f"""
         <div style="
             background: #fafaf9;
-            border: 1px solid #e5e5e5;
+            border: 1px solid #e7e5e4;
             border-radius: 10px;
             padding: 0.75rem 1rem;
-            margin-bottom: 1rem;
+            margin-bottom: 1.25rem;
             display: flex;
             justify-content: space-between;
             align-items: center;
@@ -1172,10 +1314,10 @@ if show_section("3️⃣ Permohonan Menunggu"):
             <a href="{form_url}" target="_blank" style="
                 background-color: #78350f;
                 color: #ffffff;
-                padding: 0.45rem 0.9rem;
+                padding: 0.5rem 1rem;
                 border-radius: 8px;
                 text-decoration: none;
-                font-weight: 500;
+                font-weight: 600;
                 font-size: 0.82rem;
                 white-space: nowrap;
             ">Buka Form →</a>
@@ -1239,11 +1381,13 @@ if show_section("3️⃣ Permohonan Menunggu"):
 
                     with st.container(border=True):
                         st.markdown(
-                            f"<div style='font-size: 1rem; font-weight: 600; color: #292524; margin-bottom: 0.25rem;'>"
+                            f"<div style='font-size: 1.05rem; font-weight: 700; color: #0c0a09; "
+                            f"margin-bottom: 0.35rem; letter-spacing: -0.01em;'>"
                             f"📋 {plate} — {name}"
                             f"</div>"
-                            f"<div style='font-size: 0.9rem; color: #57534e; margin-bottom: 0.15rem;'>"
-                            f"{v_type}{cat_str}"
+                            f"<div style='font-size: 0.85rem; color: #57534e; margin-bottom: 0.2rem;'>"
+                            f"<span class='badge badge-info'>{v_type}</span>"
+                            f"{' <span class=\"badge badge-neutral\">' + v_cat + '</span>' if v_cat else ''}"
                             f"</div>"
                             f"<div style='font-size: 0.85rem; color: #78716c; margin-bottom: 0.5rem;'>"
                             f"📞 {phone}"
@@ -1254,8 +1398,8 @@ if show_section("3️⃣ Permohonan Menunggu"):
                         products_text = clean_products_str(row.get(products_col, "")) if products_col else ""
                         if products_text:
                             st.markdown(
-                                f"<div style='font-size:0.8rem; font-weight:600; color:#78350f; "
-                                f"text-transform:uppercase; letter-spacing:0.5px; margin:0.35rem 0 0.25rem 0;'>"
+                                f"<div style='font-size:0.72rem; font-weight:700; color:#78350f; "
+                                f"text-transform:uppercase; letter-spacing:0.06em; margin:0.5rem 0 0.35rem 0;'>"
                                 f"🛍️ Senarai Produk</div>"
                                 f"<div class='product-box'>{products_text}</div>",
                                 unsafe_allow_html=True,
@@ -1268,8 +1412,8 @@ if show_section("3️⃣ Permohonan Menunggu"):
 
                         remark_text = clean_text(row.get(remark_col, "")) if remark_col else ""
                         st.markdown(
-                            f"<div style='font-size:0.8rem; font-weight:600; color:#92400e; "
-                            f"text-transform:uppercase; letter-spacing:0.5px; margin:0.35rem 0 0.25rem 0;'>"
+                            f"<div style='font-size:0.72rem; font-weight:700; color:#92400e; "
+                            f"text-transform:uppercase; letter-spacing:0.06em; margin:0.5rem 0 0.35rem 0;'>"
                             f"📝 Remark Vendor</div>",
                             unsafe_allow_html=True,
                         )
@@ -1472,9 +1616,6 @@ if show_section("4️⃣ Rekod Bayaran"):
                     else:
                         st.toast("Tiada perubahan", icon="ℹ️")
 
-            # ================================================
-            # REJECT VENDOR BELUM BAYAR (dari table yang di-papar)
-            # ================================================
             st.markdown("---")
             st.markdown("##### 🚫 Reject Vendor Yang Belum Bayar")
             st.caption("Pilih dari senarai di atas → klik Reject. Ayat akan keluar bila vendor semak.")
@@ -1536,7 +1677,7 @@ if show_all:
             <a href="{form_url}" target="_blank" style="
                 display: flex; align-items: center; justify-content: center; gap: 0.5rem;
                 background-color: #78350f; color: #ffffff; padding: 0.6rem 1rem;
-                border-radius: 10px; text-decoration: none; font-weight: 500; font-size: 0.85rem;
+                border-radius: 10px; text-decoration: none; font-weight: 600; font-size: 0.85rem;
             ">📋 Buka Google Form Responses</a>
             """, unsafe_allow_html=True)
     with quick_col2:
@@ -1545,7 +1686,7 @@ if show_all:
             <a href="{sheet_url}" target="_blank" style="
                 display: flex; align-items: center; justify-content: center; gap: 0.5rem;
                 background-color: #ffffff; color: #78350f; padding: 0.6rem 1rem;
-                border-radius: 10px; text-decoration: none; font-weight: 500; font-size: 0.85rem;
+                border-radius: 10px; text-decoration: none; font-weight: 600; font-size: 0.85rem;
                 border: 1px solid #d6c4a3;
             ">📊 Buka Google Sheet</a>
             """, unsafe_allow_html=True)
