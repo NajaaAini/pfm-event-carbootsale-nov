@@ -1815,8 +1815,7 @@ if show_all:
 
     st.markdown("<div style='height: 1rem;'></div>", unsafe_allow_html=True)
 
-    sub_header("🗑️ Padam 1 Baris")
-    st.caption("Kalau ada duplicate plate, pilih **baris tepat** untuk dipadam — baris lain akan kekal.")
+    sub_header("🗑️ Padam Baris")
 
     display_df_reset = display_df.reset_index(drop=True)
     delete_options = ["— Pilih baris —"] + [
