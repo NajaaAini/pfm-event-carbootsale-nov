@@ -749,7 +749,7 @@ def reject_unpaid_dialog(plate, vendor_name, vendor_type):
     )
     st.markdown("---")
 
-    # Pilih template
+    # Pilih template ayat
     template_choice = st.selectbox(
         "Pilih template ayat:",
         options=list(REJECT_TEMPLATES.keys()),
@@ -766,7 +766,7 @@ def reject_unpaid_dialog(plate, vendor_name, vendor_type):
         help="Ayat ini akan dipaparkan kepada vendor di page Semak Kelayakan.",
     )
 
-    # Preview macam vendor akan nampak
+    # Preview
     if reject_note.strip():
         st.markdown("**Preview (macam vendor akan nampak):**")
         st.markdown(
@@ -1042,61 +1042,72 @@ cutoff_date = EVENT_DATE - timedelta(days=PAYMENT_DEADLINE_DAYS)
 
 if show_section("2️⃣ Tarikh Akhir Bayaran"):
     st.markdown('<div class="section-title">2️⃣ Tarikh Akhir Bayaran</div>', unsafe_allow_html=True)
-    st.markdown(f'<div class="section-sub">Vendor yang belum bayar akan dibatalkan selepas '
-                f'<b>{cutoff_date.strftime("%d %b %Y")}</b></div>', unsafe_allow_html=True)
+    st.markdown(
+        f'<div class="section-sub">Vendor yang belum bayar — deadline '
+        f'<b>{cutoff_date.strftime("%d %b %Y")}</b></div>',
+        unsafe_allow_html=True,
+    )
 
     today = date.today()
+    days_left = (cutoff_date - today).days
+
+    # ---- Info kecil (bukan blocker) ----
     if today > cutoff_date:
-        expired = df[(df["Status"] == "Approved") & (~df["Paid"])]
-        if not expired.empty:
-            st.warning(f"{len(expired)} vendor belum membuat bayaran selepas tarikh akhir.")
-
-            expired_display = expired[[COL_PLATE, COL_NAME, COL_PHONE, COL_TYPE, COL_CAT]].copy()
-            expired_display[COL_PHONE] = expired_display[COL_PHONE].apply(format_phone_display)
-            st.dataframe(_df_to_str(expired_display), hide_index=True, width="stretch")
-
-            # ---- Reject satu-satu dengan ayat custom ----
-            st.markdown("##### 🚫 Reject Vendor (Belum Bayar)")
-            st.caption(
-                "Pilih vendor → taip ayat → reject. Ayat akan muncul bila vendor semak."
-            )
-
-            reject_options = ["— Pilih vendor —"] + [
-                f"{row[COL_PLATE]} — {row[COL_NAME]}"
-                for _, row in expired.iterrows()
-            ]
-
-            rc1, rc2 = st.columns([3, 1])
-            with rc1:
-                reject_choice = st.selectbox(
-                    "Vendor",
-                    options=reject_options,
-                    key="reject_unpaid_select",
-                    label_visibility="collapsed",
-                )
-            with rc2:
-                if st.button("🚫 Reject", type="primary", width="stretch", key="reject_unpaid_btn"):
-                    if reject_choice and reject_choice != "— Pilih vendor —":
-                        plate_pick = reject_choice.split(" — ")[0]
-                        row_pick = expired[expired[COL_PLATE] == plate_pick].iloc[0]
-                        reject_unpaid_dialog(
-                            plate_pick,
-                            row_pick[COL_NAME],
-                            row_pick[COL_TYPE],
-                        )
-                    else:
-                        st.error("Sila pilih vendor.")
-
-            st.markdown("")
-
-            # ---- Cancel all (sedia ada) ----
-            if st.button("Batalkan Semua Yang Belum Bayar", type="primary"):
-                confirm_cancel_all_dialog(len(expired))
-        else:
-            st.success("Semua vendor yang diluluskan telah membuat bayaran.")
+        st.caption(f"⚠️ Deadline telah berlalu ({abs(days_left)} hari lepas)")
     else:
-        days_left = (cutoff_date - today).days
-        st.info(f"Tarikh akhir — {days_left} hari lagi.")
+        st.caption(f"📅 Deadline — {days_left} hari lagi")
+
+    st.markdown("")
+
+    # ---- Senarai vendor belum bayar (sentiasa keluar) ----
+    unpaid = df[(df["Status"] == "Approved") & (~df["Paid"])]
+
+    if unpaid.empty:
+        st.success("✅ Semua vendor yang diluluskan telah membuat bayaran.")
+    else:
+        st.warning(f"⚠️ **{len(unpaid)}** vendor belum membuat bayaran.")
+
+        unpaid_display = unpaid[[COL_PLATE, COL_NAME, COL_PHONE, COL_TYPE, COL_CAT]].copy()
+        unpaid_display[COL_PHONE] = unpaid_display[COL_PHONE].apply(format_phone_display)
+        st.dataframe(_df_to_str(unpaid_display), hide_index=True, width="stretch")
+
+        st.markdown("")
+
+        # ---- Reject satu-satu ----
+        st.markdown("##### 🚫 Reject Vendor (Belum Bayar)")
+        st.caption("Pilih vendor → taip ayat → reject. Ayat akan muncul bila vendor semak.")
+
+        reject_options = ["— Pilih vendor —"] + [
+            f"{row[COL_PLATE]} — {row[COL_NAME]}"
+            for _, row in unpaid.iterrows()
+        ]
+
+        rc1, rc2 = st.columns([3, 1])
+        with rc1:
+            reject_choice = st.selectbox(
+                "Vendor",
+                options=reject_options,
+                key="reject_unpaid_select_s2",
+                label_visibility="collapsed",
+            )
+        with rc2:
+            if st.button("🚫 Reject", type="primary", width="stretch", key="reject_unpaid_btn_s2"):
+                if reject_choice and reject_choice != "— Pilih vendor —":
+                    plate_pick = reject_choice.split(" — ")[0]
+                    row_pick = unpaid[unpaid[COL_PLATE] == plate_pick].iloc[0]
+                    reject_unpaid_dialog(
+                        plate_pick,
+                        row_pick[COL_NAME],
+                        row_pick[COL_TYPE],
+                    )
+                else:
+                    st.error("Sila pilih vendor.")
+
+        st.markdown("")
+
+        # ---- Cancel all (bulk) ----
+        if st.button("Batalkan Semua Yang Belum Bayar", type="secondary", key="cancel_all_s2"):
+            confirm_cancel_all_dialog(len(unpaid))
 
     st.divider()
 
@@ -1431,6 +1442,44 @@ if show_section("4️⃣ Rekod Bayaran"):
                         st.rerun()
                     else:
                         st.toast("Tiada perubahan", icon="ℹ️")
+
+            # ================================================
+            # REJECT VENDOR BELUM BAYAR (dari table yang di-papar)
+            # ================================================
+            st.markdown("---")
+            st.markdown("##### 🚫 Reject Vendor Yang Belum Bayar")
+            st.caption("Pilih dari senarai di atas → klik Reject. Ayat akan keluar bila vendor semak.")
+
+            unpaid_in_view = table_df[table_df["Bayar"] == False]
+
+            if unpaid_in_view.empty:
+                st.info("ℹ️ Tiada vendor belum bayar dalam senarai ni.")
+            else:
+                reject_opts = ["— Pilih vendor —"] + [
+                    f"{r['Plate']} — {r['Nama']}"
+                    for _, r in unpaid_in_view.iterrows()
+                ]
+
+                rc1, rc2 = st.columns([3, 1])
+                with rc1:
+                    reject_pick = st.selectbox(
+                        "Vendor belum bayar",
+                        options=reject_opts,
+                        key="pay_reject_select_s4",
+                        label_visibility="collapsed",
+                    )
+                with rc2:
+                    if st.button("🚫 Reject", type="primary", width="stretch", key="pay_reject_btn_s4"):
+                        if reject_pick and reject_pick != "— Pilih vendor —":
+                            plate_pick = reject_pick.split(" — ")[0]
+                            row_pick = df[df[COL_PLATE] == plate_pick].iloc[0]
+                            reject_unpaid_dialog(
+                                plate_pick,
+                                row_pick[COL_NAME],
+                                row_pick[COL_TYPE],
+                            )
+                        else:
+                            st.error("Sila pilih vendor.")
 
     st.divider()
 
