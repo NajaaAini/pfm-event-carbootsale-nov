@@ -788,21 +788,6 @@ def reject_unpaid_dialog(plate, vendor_name, vendor_type):
         help="Ayat ini akan dipaparkan di page Semak Kelayakan.",
     )
 
-    # ---- Preview ----
-    if reject_note.strip():
-        st.markdown(
-            "<div style='font-size:0.72rem; color:#78716c; letter-spacing:0.04em; "
-            "font-weight:600; text-transform:uppercase; margin-top:0.75rem; "
-            "margin-bottom:0.35rem;'>Preview (macam vendor akan nampak)</div>",
-            unsafe_allow_html=True,
-        )
-        st.markdown(
-            f"<div style='background:#fef2f2; border-left:4px solid #dc2626; "
-            f"border-radius:8px; padding:0.85rem 1rem; font-size:0.85rem; "
-            f"color:#7f1d1d; white-space:pre-wrap; line-height:1.6;'>"
-            f"<b>✕ Permohonan Tidak Berjaya</b><br><br>{reject_note}</div>",
-            unsafe_allow_html=True,
-        )
 
     st.markdown("---")
 
