@@ -738,17 +738,40 @@ def confirm_reject_dialog(plate, vendor_name):
             st.rerun()
 
 
-@st.dialog("🚫 Reject Vendor (Belum Bayar)")
+# ============================================================
+# POPUP REJECT — Gaya sama dengan "Tahniah"
+# ============================================================
+@st.dialog("🚫 Reject Vendor (Belum Bayar)", width="large")
 def reject_unpaid_dialog(plate, vendor_name, vendor_type):
-    st.warning("Anda akan **reject** vendor yang belum bayar:")
-    st.markdown(
-        f"**No. Plate:** `{plate}`  \n"
-        f"**Nama:** {vendor_name}  \n"
-        f"**Kategori:** {vendor_type}"
-    )
-    st.markdown("---")
+    """Popup reject — sama gaya dengan popup tahniah."""
 
-    # Pilih template ayat
+    # ---- Header ----
+    st.markdown(
+        "<div style='text-align:center; padding:0.5rem 0 1rem 0;'>"
+        "<div style='font-size:3rem; line-height:1;'>🚫</div>"
+        "<div style='font-size:1.3rem; font-weight:700; color:#991b1b; "
+        "margin-top:0.5rem;'>Reject Vendor Ini?</div>"
+        "<div style='font-size:0.85rem; color:#78716c; margin-top:0.35rem;'>"
+        "Ayat di bawah akan dipaparkan kepada vendor.</div>"
+        "</div>",
+        unsafe_allow_html=True,
+    )
+
+    # ---- Info vendor ----
+    st.markdown(
+        f"<div style='background:#fef2f2; border:1px solid #fecaca; "
+        f"border-radius:10px; padding:0.8rem 1rem; margin:0.5rem 0;'>"
+        f"<div style='font-size:1rem; font-weight:700; color:#991b1b;'>"
+        f"🚗 {plate} — {vendor_name}</div>"
+        f"<div style='font-size:0.82rem; color:#7f1d1d; margin-top:0.2rem;'>"
+        f"Kategori: {vendor_type}</div>"
+        f"</div>",
+        unsafe_allow_html=True,
+    )
+
+    st.markdown("")
+
+    # ---- Pilih template ----
     template_choice = st.selectbox(
         "Pilih template ayat:",
         options=list(REJECT_TEMPLATES.keys()),
@@ -756,17 +779,34 @@ def reject_unpaid_dialog(plate, vendor_name, vendor_type):
     )
     default_text = REJECT_TEMPLATES.get(template_choice, "")
 
-    # Ayat untuk vendor
+    # ---- Ayat ----
     reject_note = st.text_area(
         "Ayat untuk vendor (boleh edit):",
         value=default_text,
         height=160,
         key=f"reject_note_{plate}",
-        help="Ayat ini akan dipaparkan kepada vendor di page Semak Kelayakan.",
+        help="Ayat ini akan dipaparkan di page Semak Kelayakan.",
     )
+
+    # ---- Preview ----
+    if reject_note.strip():
+        st.markdown(
+            "<div style='font-size:0.72rem; color:#78716c; letter-spacing:0.04em; "
+            "font-weight:600; text-transform:uppercase; margin-top:0.75rem; "
+            "margin-bottom:0.35rem;'>Preview (macam vendor akan nampak)</div>",
+            unsafe_allow_html=True,
+        )
+        st.markdown(
+            f"<div style='background:#fef2f2; border-left:4px solid #dc2626; "
+            f"border-radius:8px; padding:0.85rem 1rem; font-size:0.85rem; "
+            f"color:#7f1d1d; white-space:pre-wrap; line-height:1.6;'>"
+            f"<b>✕ Permohonan Tidak Berjaya</b><br><br>{reject_note}</div>",
+            unsafe_allow_html=True,
+        )
 
     st.markdown("---")
 
+    # ---- Buttons ----
     col1, col2 = st.columns(2)
     with col1:
         if st.button("🚫 Ya, Reject", type="primary", width="stretch",
