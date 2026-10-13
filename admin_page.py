@@ -765,8 +765,6 @@ def reject_unpaid_dialog(plate, vendor_name, vendor_type):
         help="Ayat ini akan dipaparkan kepada vendor di page Semak Kelayakan.",
     )
 
-
-
     st.markdown("---")
 
     col1, col2 = st.columns(2)
@@ -1049,8 +1047,20 @@ if show_section("2️⃣ Tarikh Akhir Bayaran"):
 
     st.markdown("")
 
-    # ---- Senarai vendor belum bayar (sentiasa keluar) ----
+    # ---- Filter kategori produk ----
+    filter_col1, _ = st.columns([1, 3])
+    with filter_col1:
+        unpaid_category_filter = st.selectbox(
+            "Kategori",
+            options=["Semua", "Car Boot Sales", "F&B", "Food Truck", "Arts/Crafts & Others"],
+            key="unpaid_category_filter",
+        )
+
+    # ---- Senarai vendor belum bayar (dengan filter) ----
     unpaid = df[(df["Status"] == "Approved") & (~df["Paid"])]
+
+    if unpaid_category_filter != "Semua":
+        unpaid = unpaid[unpaid[COL_TYPE] == unpaid_category_filter]
 
     if unpaid.empty:
         st.success("✅ Semua vendor yang diluluskan telah membuat bayaran.")
@@ -1096,7 +1106,11 @@ if show_section("2️⃣ Tarikh Akhir Bayaran"):
         st.markdown("")
 
         # ---- Cancel all (bulk) ----
-        if st.button("Batalkan Semua Yang Belum Bayar", type="secondary", key="cancel_all_s2"):
+        if st.button(
+            f"Batalkan Semua Yang Belum Bayar ({len(unpaid)})",
+            type="secondary",
+            key="cancel_all_s2",
+        ):
             confirm_cancel_all_dialog(len(unpaid))
 
     st.divider()
