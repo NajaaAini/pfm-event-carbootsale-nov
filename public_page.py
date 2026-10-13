@@ -134,62 +134,6 @@ def get_vendor_payment_info(payments_df, plate_norm):
     }
 
 
-def render_stepper(status, paid, has_uploaded_proof):
-    """Compact visual progress stepper — no buttons."""
-    steps = [
-        ("Daftar", True),
-        ("Diluluskan", status in ("Approved", "Rejected", "Cancelled")),
-        ("Upload", has_uploaded_proof),
-        ("Disahkan", paid),
-    ]
-    cols = st.columns(4)
-    for i, (label, done) in enumerate(steps):
-        with cols[i]:
-            icon = "✅" if done else "⚪"
-            color = "#16a34a" if done else "#a8a29e"
-            st.markdown(
-                f"<div style='text-align:center; padding:0.1rem 0;'>"
-                f"<span style='font-size:1.1rem;'>{icon}</span> "
-                f"<span style='font-size:0.72rem; color:{color}; font-weight:600;'>{label}</span>"
-                f"</div>",
-                unsafe_allow_html=True,
-            )
-
-
-def render_action_banner(status, paid, has_uploaded_proof):
-    """Compact banner — no buttons (dah ada di bawah)."""
-    if status == "Approved" and not paid and not has_uploaded_proof:
-        st.markdown(
-            "<div style='background:#fef2f2; border-left:4px solid #dc2626; "
-            "padding:0.6rem 0.9rem; border-radius:8px; margin:0.5rem 0; "
-            "font-size:0.82rem; color:#7f1d1d;'>"
-            "<b>⚠️ TINDAKAN DIPERLUKAN</b> — Scroll ke bawah untuk "
-            "jumlah bayaran & butang upload. "
-            "⏰ Sebelum <b>Isnin (12/10/2026) 11:00 pagi</b>."
-            "</div>",
-            unsafe_allow_html=True,
-        )
-    elif status == "Approved" and not paid and has_uploaded_proof:
-        st.markdown(
-            "<div style='background:#eff6ff; border-left:4px solid #2563eb; "
-            "padding:0.6rem 0.9rem; border-radius:8px; margin:0.5rem 0; "
-            "font-size:0.82rem; color:#1e3a8a;'>"
-            "<b>📤 BUKTI DITERIMA</b> — Admin sedang semak. Scroll ke bawah untuk info lanjut."
-            "</div>",
-            unsafe_allow_html=True,
-        )
-    elif status == "Approved" and paid:
-        st.markdown(
-            "<div style='background:#f0fdf4; border-left:4px solid #16a34a; "
-            "padding:0.6rem 0.9rem; border-radius:8px; margin:0.5rem 0; "
-            "font-size:0.82rem; color:#14532d;'>"
-            "<b>✅ SLOT DISAHKAN</b> — Scroll ke bawah: maklumat slot & "
-            "butang Join WhatsApp Group."
-            "</div>",
-            unsafe_allow_html=True,
-        )
-
-
 # ============================================================
 # TITLE
 # ============================================================
@@ -361,14 +305,6 @@ if submitted and query:
         fnb_lot = payment_info.get("fnb_lot", "")
         ft_lot = payment_info.get("ft_lot", "")
         arts_lot = payment_info.get("arts_lot", "")
-
-        # ====================================================
-        # STEPPER + BANNER (compact, no buttons)
-        # ====================================================
-        render_stepper(status, paid, has_uploaded_proof)
-        render_action_banner(status, paid, has_uploaded_proof)
-
-        st.markdown("<div style='height:0.25rem;'></div>", unsafe_allow_html=True)
 
         # ====================================================
         # ADMIN NOTE + VENDOR REMARK (compact helper)
