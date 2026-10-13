@@ -94,6 +94,24 @@ def format_rm(amount):
         return "RM 0.00"
 
 
+def clean_text_field(raw):
+    """Return clean string or '' if empty/NaN/null."""
+    if raw is None or pd.isna(raw):
+        return ""
+    s = str(raw).strip()
+    if s.lower() in ("", "nan", "none", "nat", "null"):
+        return ""
+    return s
+
+
+def find_products_column(df_):
+    """Auto-detect the products column name (tolerates whitespace/newlines)."""
+    for c in df_.columns:
+        if "Senarai Produk yang Dijual" in str(c):
+            return c
+    return None
+
+
 def get_vendor_payment_info(payments_df, plate_norm):
     if payments_df is None or payments_df.empty:
         return {}
@@ -132,6 +150,96 @@ def get_vendor_payment_info(payments_df, plate_norm):
             or latest.get("Pilih Arts & Crafts / Toys Lot", "")
         ),
     }
+
+
+def render_products_box(products_text):
+    """Papar senarai produk dalam box berwarna."""
+    st.markdown(
+        "<div style='background:#faf5ec; border-left:4px solid #78350f; "
+        "border-radius:8px; padding:0.75rem 1rem; margin:0.5rem 0;'>"
+        "<div style='font-size:0.72rem; color:#78350f; letter-spacing:0.04em; "
+        "font-weight:700; text-transform:uppercase; margin-bottom:0.35rem;'>"
+        "🛍️ Senarai Produk Anda</div>"
+        f"<div style='font-size:0.85rem; color:#44403c; white-space:pre-wrap; "
+        f"line-height:1.5;'>{products_text}</div>"
+        "</div>",
+        unsafe_allow_html=True,
+    )
+
+
+# ============================================================
+# POPUP — TA'AHNIAH
+# ============================================================
+@st.dialog("🎉 Tahniah!", width="large")
+def show_success_dialog(row, plate, status, paid, slot_items):
+    """Popup tahniah untuk vendor yang dah paid."""
+
+    # ---- Header congratulation ----
+    st.markdown(
+        "<div style='text-align:center; padding:0.5rem 0 1rem 0;'>"
+        "<div style='font-size:3rem; line-height:1;'>🎉</div>"
+        "<div style='font-size:1.4rem; font-weight:700; color:#14532d; "
+        "margin-top:0.5rem;'>Pendaftaran Berjaya Disahkan!</div>"
+        "<div style='font-size:0.85rem; color:#78716c; margin-top:0.35rem;'>"
+        "Terima kasih kerana menyertai event kami.</div>"
+        "</div>",
+        unsafe_allow_html=True,
+    )
+
+    # ---- Info vendor (plate, nama, kategori) ----
+    cat_str = ""
+    if pd.notna(row.get(COL_CAT)) and str(row.get(COL_CAT)).strip():
+        cat_str = f" · {row[COL_CAT]}"
+
+    st.markdown(
+        f"<div style='background:#f0fdf4; border:1px solid #bbf7d0; "
+        f"border-radius:10px; padding:0.8rem 1rem; margin:0.5rem 0;'>"
+        f"<div style='font-size:1rem; font-weight:700; color:#14532d;'>"
+        f"🚗 {plate} — {row[COL_NAME]}</div>"
+        f"<div style='font-size:0.82rem; color:#166534; margin-top:0.2rem;'>"
+        f"{row[COL_TYPE]}{cat_str}</div>"
+        f"</div>",
+        unsafe_allow_html=True,
+    )
+
+    # ---- Slot info ----
+    if slot_items:
+        st.markdown(
+            "<div style='font-size:0.72rem; color:#78716c; letter-spacing:0.04em; "
+            "font-weight:600; text-transform:uppercase; margin-top:0.75rem; "
+            "margin-bottom:0.35rem;'>📍 Maklumat Slot Anda</div>",
+            unsafe_allow_html=True,
+        )
+        cols = st.columns(2)
+        for i, (label, val) in enumerate(slot_items):
+            with cols[i % 2]:
+                st.markdown(
+                    f"<div style='background:#f7f3ee; border-radius:8px; "
+                    f"padding:0.55rem 0.75rem; margin-bottom:0.4rem; font-size:0.85rem;'>"
+                    f"<b>{label}:</b> {val}</div>",
+                    unsafe_allow_html=True,
+                )
+
+    st.markdown("<div style='height:0.75rem;'></div>", unsafe_allow_html=True)
+
+    # ---- Reminder WhatsApp ----
+    st.info(
+        "📌 **Jangan lupa join WhatsApp Group Vendor** — "
+        "untuk update terkini tentang event, susun atur booth, "
+        "parking lot, dan pengumuman penting."
+    )
+
+    # ---- Button Join WhatsApp (besar) ----
+    st.link_button(
+        "💬 Join WhatsApp Group Vendor",
+        st.secrets["event"]["whatsapp_group"],
+        width="stretch",
+        type="primary",
+    )
+
+    # ---- Button tutup ----
+    if st.button("Tutup", width="stretch"):
+        st.rerun()
 
 
 # ============================================================
@@ -307,6 +415,14 @@ if submitted and query:
         arts_lot = payment_info.get("arts_lot", "")
 
         # ====================================================
+        # SENARAI PRODUK (auto-detect column)
+        # ====================================================
+        products_col_name = find_products_column(df)
+        products_text = ""
+        if products_col_name:
+            products_text = clean_text_field(row.get(products_col_name, ""))
+
+        # ====================================================
         # ADMIN NOTE + VENDOR REMARK (compact helper)
         # ====================================================
         def _render_notes(row, COL_REMARK):
@@ -364,6 +480,10 @@ if submitted and query:
 
                 _render_notes(row, COL_REMARK)
 
+                # Senarai produk untuk rujukan vendor
+                if products_text:
+                    render_products_box(products_text)
+
             # ========== CASE 2: BELUM PAID + BELUM UPLOAD ==========
             elif not paid and not has_uploaded_proof:
 
@@ -418,6 +538,14 @@ if submitted and query:
 
                 _render_notes(row, COL_REMARK)
 
+                # ---- SENARAI PRODUK (untuk semak sebelum bayar) ----
+                if products_text:
+                    render_products_box(products_text)
+                    st.caption(
+                        "⚠️ Kalau ada perubahan senarai produk, sila maklumkan admin "
+                        "semasa upload bukti bayaran."
+                    )
+
                 # ---- BUTANG UPLOAD (SATU SAHAJA) ----
                 st.link_button(
                     "📤 Upload Bukti Bayaran dan Pemilihan Slot",
@@ -428,13 +556,7 @@ if submitted and query:
 
             # ========== CASE 3: DAH PAID ==========
             else:
-                with st.container(border=True):
-                    st.success("✓ **Permohonan Disahkan**")
-                    st.caption("Slot anda telah dikonfirmasi.")
-
-                _render_notes(row, COL_REMARK)
-
-                # ---- SLOT INFO (grid 2 columns) ----
+                # ---- Bina slot_items (untuk popup & display) ----
                 slot_items = []
                 if parking_lot:
                     slot_items.append(("🅿️ Parking Lot", parking_lot))
@@ -445,6 +567,20 @@ if submitted and query:
                 if arts_lot:
                     slot_items.append(("🎨 Arts/Crafts Lot", arts_lot))
 
+                # ---- POPUP (sekali sahaja per sesi) ----
+                dialog_key = f"success_shown_{plate_norm}"
+                if not st.session_state.get(dialog_key, False):
+                    st.session_state[dialog_key] = True
+                    show_success_dialog(row, plate_norm, status, paid, slot_items)
+
+                # ---- Content di belakang popup ----
+                with st.container(border=True):
+                    st.success("✓ **Permohonan Disahkan**")
+                    st.caption("Slot anda telah dikonfirmasi.")
+
+                _render_notes(row, COL_REMARK)
+
+                # ---- SLOT INFO (grid 2 columns) ----
                 if slot_items:
                     with st.container(border=True):
                         st.caption("📍 MAKLUMAT SLOT ANDA")
@@ -457,6 +593,12 @@ if submitted and query:
                                     f"<b>{label}:</b> {val}</div>",
                                     unsafe_allow_html=True,
                                 )
+
+                # ---- SENARAI PRODUK (rujukan vendor) ----
+                if products_text:
+                    render_products_box(products_text)
+                else:
+                    st.caption("🛍️ _(Tiada senarai produk didaftarkan)_")
 
                 # ---- EVENT INFO (compact) ----
                 st.markdown(
