@@ -168,7 +168,7 @@ def render_products_box(products_text):
 
 
 # ============================================================
-# POPUP — TA'AHNIAH
+# POPUP — TA'AHNIAH (Approved + Paid)
 # ============================================================
 @st.dialog("🎉 Tahniah!", width="large")
 def show_success_dialog(row, plate, status, paid, slot_items):
@@ -233,6 +233,112 @@ def show_success_dialog(row, plate, status, paid, slot_items):
     st.link_button(
         "💬 Join WhatsApp Group Vendor",
         st.secrets["event"]["whatsapp_group"],
+        width="stretch",
+        type="primary",
+    )
+
+    # ---- Button tutup ----
+    if st.button("Tutup", width="stretch"):
+        st.rerun()
+
+
+# ============================================================
+# POPUP — MAKLUMAT PEMBAYARAN (Approved + Belum Bayar)
+# ============================================================
+@st.dialog("💳 Maklumat Pembayaran", width="large")
+def show_payment_dialog(row, plate, vendor_type, cat_price, deposit_amount, addon_price, total_price):
+    """Popup maklumat bayaran untuk vendor yang dah lulus tapi belum bayar."""
+
+    # ---- Header: Total besar ----
+    st.markdown(
+        f"<div style='text-align:center; padding:0.5rem 0 0.75rem 0;'>"
+        f"<div style='font-size:0.72rem; color:#9a3412; letter-spacing:0.04em; "
+        f"font-weight:700; text-transform:uppercase;'>💰 Jumlah Perlu Dibayar</div>"
+        f"<div style='font-size:2.2rem; font-weight:800; color:#7c2d12; "
+        f"line-height:1.1; margin-top:0.35rem;'>{format_rm(total_price)}</div>"
+        f"</div>",
+        unsafe_allow_html=True,
+    )
+
+    # ---- Info vendor ringkas ----
+    st.markdown(
+        f"<div style='font-size:0.85rem; color:#57534e; text-align:center; "
+        f"margin-bottom:0.75rem;'>🚗 <b>{plate}</b> — {row[COL_NAME]}</div>",
+        unsafe_allow_html=True,
+    )
+
+    # ---- Breakdown kategori ----
+    breakdown_lines = [
+        f"<div style='display:flex; justify-content:space-between; padding:0.35rem 0; "
+        f"font-size:0.88rem; border-bottom:1px solid #f5f5f4;'>"
+        f"<span style='color:#57534e;'>📦 {vendor_type}</span>"
+        f"<span style='color:#1c1917; font-weight:600;'>{format_rm(cat_price)}</span>"
+        f"</div>"
+    ]
+    if deposit_amount > 0:
+        breakdown_lines.append(
+            f"<div style='display:flex; justify-content:space-between; padding:0.35rem 0; "
+            f"font-size:0.88rem; border-bottom:1px solid #f5f5f4;'>"
+            f"<span style='color:#57534e;'>🔒 Deposit (Refundable)</span>"
+            f"<span style='color:#1c1917; font-weight:600;'>{format_rm(deposit_amount)}</span>"
+            f"</div>"
+        )
+    if addon_price > 0:
+        breakdown_lines.append(
+            f"<div style='display:flex; justify-content:space-between; padding:0.35rem 0; "
+            f"font-size:0.88rem; border-bottom:1px solid #f5f5f4;'>"
+            f"<span style='color:#57534e;'>➕ Add On</span>"
+            f"<span style='color:#1c1917; font-weight:600;'>{format_rm(addon_price)}</span>"
+            f"</div>"
+        )
+
+    st.markdown(
+        f"<div style='background:#fafaf9; border-radius:8px; padding:0.6rem 0.9rem; "
+        f"margin:0.5rem 0;'>{''.join(breakdown_lines)}</div>",
+        unsafe_allow_html=True,
+    )
+
+    st.markdown("<div style='height:0.5rem;'></div>", unsafe_allow_html=True)
+
+    # ---- Maklumat Bank ----
+    st.markdown(
+        "<div style='font-size:0.72rem; color:#78716c; letter-spacing:0.04em; "
+        "font-weight:700; text-transform:uppercase; margin-bottom:0.35rem;'>"
+        "🏦 Maklumat Bank</div>",
+        unsafe_allow_html=True,
+    )
+
+    st.markdown(
+        "<div style='background:#eff6ff; border:1px solid #bfdbfe; "
+        "border-radius:8px; padding:0.75rem 1rem; font-size:0.88rem; line-height:1.7;'>"
+        "<b>Bank:</b> MAYBANK<br>"
+        "<b>Nama Akaun:</b> PRINTHERO MERCHANDISE SDN. BHD.<br>"
+        "<b>No. Akaun:</b> <code style='background:#fff; padding:0.15rem 0.4rem; "
+        "border-radius:4px; font-size:0.95rem;'>557054621057</code><br>"
+        "<b>Remark:</b> <code style='background:#fff; padding:0.15rem 0.4rem; "
+        "border-radius:4px;'>PFMCBS</code> + 4 digit akhir No. Telefon<br>"
+        "<span style='color:#78716c; font-size:0.8rem;'>Contoh: "
+        "<code style='background:#fff; padding:0.1rem 0.3rem; border-radius:4px;'>"
+        "PFMCBS1234</code></span>"
+        "</div>",
+        unsafe_allow_html=True,
+    )
+
+    st.markdown("<div style='height:0.5rem;'></div>", unsafe_allow_html=True)
+
+    # ---- Deadline ----
+    st.error(
+        "📢 **Deadline:** Full payment sebelum **Isnin (12/10/2026) 11:00 pagi**. "
+        "Selepas itu slot akan **dibatalkan**."
+    )
+
+    # ---- Nota penting ----
+    st.warning("📄 Sila upload bukti bayaran dalam **format PDF sahaja**.")
+
+    # ---- Button Upload (besar, primary) ----
+    st.link_button(
+        "📤 Upload Bukti Bayaran dan Pemilihan Slot",
+        st.secrets["event"]["payment_form_url"],
         width="stretch",
         type="primary",
     )
@@ -480,7 +586,6 @@ if submitted and query:
 
                 _render_notes(row, COL_REMARK)
 
-                # Senarai produk untuk rujukan vendor
                 if products_text:
                     render_products_box(products_text)
 
@@ -493,6 +598,15 @@ if submitted and query:
                 addon_str_raw = str(row.get(COL_ADDON, "") or "")
                 addon_price = get_addon_price(addon_str_raw)
                 total_price = cat_price + deposit_amount + addon_price
+
+                # ---- POPUP BAYARAN (sekali sahaja per sesi) ----
+                payment_dialog_key = f"payment_shown_{plate_norm}"
+                if not st.session_state.get(payment_dialog_key, False) and total_price > 0:
+                    st.session_state[payment_dialog_key] = True
+                    show_payment_dialog(
+                        row, plate_norm, vendor_type,
+                        cat_price, deposit_amount, addon_price, total_price
+                    )
 
                 # ---- KAD HARGA (compact) ----
                 if total_price > 0:
@@ -538,7 +652,6 @@ if submitted and query:
 
                 _render_notes(row, COL_REMARK)
 
-                # ---- SENARAI PRODUK (untuk semak sebelum bayar) ----
                 if products_text:
                     render_products_box(products_text)
                     st.caption(
