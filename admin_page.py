@@ -788,7 +788,7 @@ with st.sidebar:
         options=[
             "🏠 Semua Section",
             "1️⃣ Dashboard",
-            "2️⃣ Tarikh Akhir Bayaran",
+            "2️⃣ Pembayaran (Pending)",
             "3️⃣ Pendaftaran Baru",
             "4️⃣ Rekod Bayaran",
         ],
@@ -889,7 +889,7 @@ def confirm_reject_dialog(plate, vendor_name):
             st.rerun()
 
 
-@st.dialog("🚫 Reject Vendor (Belum Bayar)", width="large")
+@st.dialog("🚫 Reject Vendor", width="large")
 def reject_unpaid_dialog(plate, vendor_name, vendor_type):
     st.markdown(
         "<div style='text-align:center; padding:0.5rem 0 1rem 0;'>"
@@ -1028,10 +1028,6 @@ def confirm_delete_dialog(plate, vendor_name, row_signature):
     st.warning("Anda akan **memadam** 1 baris rekod vendor ini:")
     st.markdown(f"**No. Plate:** `{plate}`  \n**Nama:** {vendor_name}")
     st.write("")
-    st.info(
-        "ℹ️ Kalau ada duplicate (2 baris sama plate), **hanya 1 baris ini** "
-        "akan dipadam. Baris lain kekal."
-    )
     st.error("⚠️ **Tindakan ini tidak boleh diundur.** Data akan dibuang dari Google Sheet.")
 
     col1, col2 = st.columns(2)
@@ -1049,7 +1045,7 @@ def confirm_delete_dialog(plate, vendor_name, row_signature):
                 df = df.drop(matched_idx).reset_index(drop=True)
                 safe_update(conn, df)
                 log_action(conn, ADMIN_NAME, "DELETE", plate,
-                           f"Padam 1 baris: {vendor_name}")
+                           f"Padam Vendor: {vendor_name}")
                 st.toast(f"🗑️ 1 baris {plate} telah dipadam", icon="🗑️")
                 st.rerun()
             else:
@@ -1200,8 +1196,8 @@ if show_section("1️⃣ Dashboard"):
 # ============================================================
 cutoff_date = EVENT_DATE - timedelta(days=PAYMENT_DEADLINE_DAYS)
 
-if show_section("2️⃣ Tarikh Akhir Bayaran"):
-    st.markdown('<div class="section-title">2️⃣ Tarikh Akhir Bayaran</div>', unsafe_allow_html=True)
+if show_section("2️⃣ Pembayaran (Pending)"):
+    st.markdown('<div class="section-title">2️⃣ Pembayaran (Pending)</div>', unsafe_allow_html=True)
     st.markdown(
         f'<div class="section-sub">Vendor yang belum bayar — deadline '
         f'<b>{cutoff_date.strftime("%d %b %Y")}</b></div>',
@@ -1243,7 +1239,6 @@ if show_section("2️⃣ Tarikh Akhir Bayaran"):
         st.markdown("")
 
         st.markdown("##### 🚫 Reject Vendor (Belum Bayar)")
-        st.caption("Pilih vendor → taip ayat → reject. Ayat akan muncul bila vendor semak.")
 
         reject_options = ["— Pilih vendor —"] + [
             f"{row[COL_PLATE]} — {row[COL_NAME]}"
@@ -1445,7 +1440,7 @@ if show_section("3️⃣ Permohonan Menunggu"):
 # ============================================================
 if show_section("4️⃣ Rekod Bayaran"):
     st.markdown('<div class="section-title">4️⃣ Rekod Bayaran</div>', unsafe_allow_html=True)
-    st.markdown('<div class="section-sub">Semak bukti & tandakan status pembayaran vendor</div>', unsafe_allow_html=True)
+    st.markdown('<div class="section-sub">Semak bukti & status pembayaran vendor</div>', unsafe_allow_html=True)
 
     approved_df = df[df["Status"] == "Approved"]
 
@@ -1617,8 +1612,7 @@ if show_section("4️⃣ Rekod Bayaran"):
                         st.toast("Tiada perubahan", icon="ℹ️")
 
             st.markdown("---")
-            st.markdown("##### 🚫 Reject Vendor Yang Belum Bayar")
-            st.caption("Pilih dari senarai di atas → klik Reject. Ayat akan keluar bila vendor semak.")
+            st.markdown("##### 🚫 Reject Vendor")
 
             unpaid_in_view = table_df[table_df["Bayar"] == False]
 
@@ -1658,9 +1652,7 @@ if show_section("4️⃣ Rekod Bayaran"):
 # SECTION 5 — SEMUA VENDOR
 # ============================================================
 if show_all:
-    st.markdown('<div class="section-title">5️⃣ Semua Vendor</div>', unsafe_allow_html=True)
-    st.markdown('<div class="section-sub">Senarai penuh vendor + muat turun CSV</div>', unsafe_allow_html=True)
-
+    st.markdown('<div class="section-title">5️⃣ Senarai Vendor</div>', unsafe_allow_html=True)
     try:
         form_url = st.secrets["event"].get("google_form_responses_url", "")
     except Exception:
@@ -1699,7 +1691,7 @@ if show_all:
     with all_f1:
         status_options = df["Status"].dropna().unique().tolist()
         status_filter = st.multiselect(
-            "Tapis mengikut status",
+            "Status",
             options=status_options,
             default=status_options,
             key="all_status_filter",
