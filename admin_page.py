@@ -1442,6 +1442,116 @@ if show_section("4️⃣ Rekod Bayaran"):
     st.markdown('<div class="section-title">4️⃣ Rekod Bayaran</div>', unsafe_allow_html=True)
     st.markdown('<div class="section-sub">Semak bukti & status pembayaran vendor</div>', unsafe_allow_html=True)
 
+    # ==========================================================
+    # BAHAGIAN A — REKOD BAYARAN BARU (Pending + Ada Bukti)
+    # ==========================================================
+    st.markdown("### 📥 Bayaran Baru (Belum Approve)")
+    st.caption(
+        "Vendor yang **belum diluluskan** tetapi sudah upload bukti bayaran. "
+        "Semak bukti, kemudian pergi ke **Pendaftaran Baru** untuk approve."
+    )
+
+    new_payments = []
+    for _, row in df[df["Status"] == "Pending"].iterrows():
+        plate = row[COL_PLATE]
+        info = get_vendor_payment_info(plate)
+        proof_url = info.get("proof_url", "")
+
+        if proof_url:
+            new_payments.append({
+                "Plate": plate,
+                "Nama": row[COL_NAME],
+                "Telefon": format_phone_display(row.get(COL_PHONE, "")),
+                "Kategori": str(row.get(COL_TYPE, "")).strip(),
+                "Total": format_rm(get_vendor_total(
+                    row.get(COL_TYPE, ""),
+                    row.get(COL_ADDON, ""),
+                )),
+                "Timestamp": format_timestamp_display(info.get("timestamp", "")),
+                "Link": proof_url,
+            })
+
+    if not new_payments:
+        st.info("ℹ️ Tiada vendor baru yang upload bukti bayaran.")
+    else:
+        new_df = pd.DataFrame(new_payments)
+
+        # ---- Filter Kategori ----
+        new_filter_col, _ = st.columns([1, 3])
+        with new_filter_col:
+            new_category_filter = st.selectbox(
+                "Kategori",
+                options=["Semua", "Car Boot Sales", "F&B", "Food Truck", "Arts/Crafts & Others"],
+                key="new_pay_filter_category",
+            )
+
+        if new_category_filter != "Semua":
+            new_df = new_df[new_df["Kategori"] == new_category_filter]
+
+        if new_df.empty:
+            st.info("Tiada vendor baru dalam kategori ini.")
+        else:
+            st.caption(f"Menunjukkan **{len(new_df)}** vendor baru.")
+
+            new_df = new_df.sort_values(["Kategori", "Plate"]).reset_index(drop=True)
+            for c in new_df.columns:
+                if c != "Link":
+                    new_df[c] = new_df[c].astype(str)
+
+            new_table_height = min(max(len(new_df) * 35 + 45, 200), 400)
+
+            st.dataframe(
+                new_df,
+                hide_index=True,
+                width="stretch",
+                height=new_table_height,
+                column_config={
+                    "Plate": st.column_config.TextColumn("Plate", width="small"),
+                    "Nama": st.column_config.TextColumn("Nama", width="medium"),
+                    "Telefon": st.column_config.TextColumn("Telefon", width="small"),
+                    "Kategori": st.column_config.TextColumn("Kategori", width="medium"),
+                    "Total": st.column_config.TextColumn("Total", width="small"),
+                    "Timestamp": st.column_config.TextColumn("Timestamp", width="medium"),
+                    "Link": st.column_config.LinkColumn("Bukti", display_text="Buka 📄", width="small"),
+                },
+            )
+
+            st.markdown("")
+
+            # ---- Quick Approve ----
+            st.markdown("##### ✅ Approve Terus")
+            st.caption("Pilih vendor → klik Approve. Admin note akan dihantar kepada vendor.")
+
+            approve_options = ["— Pilih vendor —"] + [
+                f"{r['Plate']} — {r['Nama']}"
+                for _, r in new_df.iterrows()
+            ]
+
+            ac1, ac2 = st.columns([3, 1])
+            with ac1:
+                approve_choice = st.selectbox(
+                    "Vendor untuk approve",
+                    options=approve_options,
+                    key="new_pay_approve_select",
+                    label_visibility="collapsed",
+                )
+            with ac2:
+                if st.button("✓ Approve", type="primary", width="stretch", key="new_pay_approve_btn"):
+                    if approve_choice and approve_choice != "— Pilih vendor —":
+                        plate_pick = approve_choice.split(" — ")[0]
+                        row_pick = df[df[COL_PLATE] == plate_pick].iloc[0]
+                        confirm_approve_dialog(plate_pick, row_pick[COL_NAME])
+                    else:
+                        st.error("Sila pilih vendor.")
+
+    st.markdown("---")
+
+    # ==========================================================
+    # BAHAGIAN B — REKOD BAYARAN (Approved)
+    # ==========================================================
+    st.markdown("### ✅ Vendor Diluluskan")
+    st.caption("Semak bukti & tanda status pembayaran vendor yang telah diluluskan.")
+
     approved_df = df[df["Status"] == "Approved"]
 
     if approved_df.empty:
@@ -1610,40 +1720,6 @@ if show_section("4️⃣ Rekod Bayaran"):
                         st.rerun()
                     else:
                         st.toast("Tiada perubahan", icon="ℹ️")
-
-            st.markdown("---")
-            st.markdown("##### 🚫 Reject Vendor")
-
-            unpaid_in_view = table_df[table_df["Bayar"] == False]
-
-            if unpaid_in_view.empty:
-                st.info("ℹ️ Tiada vendor belum bayar dalam senarai ni.")
-            else:
-                reject_opts = ["— Pilih vendor —"] + [
-                    f"{r['Plate']} — {r['Nama']}"
-                    for _, r in unpaid_in_view.iterrows()
-                ]
-
-                rc1, rc2 = st.columns([3, 1])
-                with rc1:
-                    reject_pick = st.selectbox(
-                        "Vendor belum bayar",
-                        options=reject_opts,
-                        key="pay_reject_select_s4",
-                        label_visibility="collapsed",
-                    )
-                with rc2:
-                    if st.button("🚫 Reject", type="primary", width="stretch", key="pay_reject_btn_s4"):
-                        if reject_pick and reject_pick != "— Pilih vendor —":
-                            plate_pick = reject_pick.split(" — ")[0]
-                            row_pick = df[df[COL_PLATE] == plate_pick].iloc[0]
-                            reject_unpaid_dialog(
-                                plate_pick,
-                                row_pick[COL_NAME],
-                                row_pick[COL_TYPE],
-                            )
-                        else:
-                            st.error("Sila pilih vendor.")
 
     st.divider()
 
