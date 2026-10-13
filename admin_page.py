@@ -164,7 +164,7 @@ REJECT_TEMPLATES = {
         "Maaf, tempahan slot anda telah dibatalkan kerana bayaran tidak "
         "diterima sebelum tarikh akhir yang ditetapkan. Slot anda kini "
         "telah dibuka semula kepada vendor lain. Terima kasih atas "
-        "minat anda — semoga kita dapat bekerjasama pada event akan datang. 🙏"
+        "minat anda. Semoga kita dapat bekerjasama pada event akan datang. 🙏"
     ),
     "Slot kategori penuh": (
         "Maaf, slot untuk kategori anda telah penuh. Kami tidak dapat "
@@ -766,16 +766,7 @@ def reject_unpaid_dialog(plate, vendor_name, vendor_type):
         help="Ayat ini akan dipaparkan kepada vendor di page Semak Kelayakan.",
     )
 
-    # Preview
-    if reject_note.strip():
-        st.markdown("**Preview (macam vendor akan nampak):**")
-        st.markdown(
-            f"<div style='background:#fef2f2; border-left:4px solid #dc2626; "
-            f"padding:0.75rem 1rem; border-radius:8px; font-size:0.85rem; "
-            f"color:#7f1d1d; white-space:pre-wrap;'>"
-            f"<b>✕ Permohonan Tidak Berjaya</b><br><br>{reject_note}</div>",
-            unsafe_allow_html=True,
-        )
+
 
     st.markdown("---")
 
