@@ -647,6 +647,8 @@ def _df_to_str(df_):
 # SAMBUNGAN DATA
 # ============================================================
 conn = st.connection("gsheets", type=GSheetsConnection)
+
+# ttl=0 → selalu ambil data fresh dari sheet (elak overwrite data lama)
 df = load_sheet_safe(conn, "Vendors", ttl=0)
 
 if df is None:
@@ -702,6 +704,7 @@ df["Notes"] = df["Notes"].astype("object").fillna("").astype(str)
 # ============================================================
 # LOAD PAYMENTS
 # ============================================================
+# ttl=0 → selalu ambil data fresh dari sheet
 payments_df = load_sheet_safe(conn, "Payments", ttl=0)
 if payments_df is None or payments_df.empty:
     payments_df = pd.DataFrame(
@@ -822,11 +825,34 @@ def others_pending():
     return df[mask].shape[0]
 
 
-def safe_update(conn, df):
+def safe_update(conn, df, sheet_name="Vendors"):
+    """
+    Update sheet dengan safety check.
+    Elak overwrite data yang hilang — kalau df baru lebih kecil
+    dari data fresh di sheet, block update dan tunjuk error.
+    """
+    # Ambil data fresh dari sheet (tanpa cache)
+    try:
+        fresh = load_sheet_safe(conn, sheet_name, ttl=0)
+    except Exception:
+        fresh = None
+
+    if fresh is not None and len(fresh) > 0:
+        # Safety: kalau df baru lebih kecil dari fresh → bahaya
+        if len(df) < len(fresh):
+            st.error(
+                f"⚠️ **Safety block**: Data yang nak diupdate ada **{len(df)}** baris, "
+                f"tapi sheet sekarang ada **{len(fresh)}** baris. "
+                f"Kemungkinan ada data baru dari sumber lain (form / admin lain). "
+                f"Sila refresh page (tekan R) dan cuba lagi."
+            )
+            st.stop()
+
     if "Notes" in df.columns:
         df["Notes"] = df["Notes"].astype("object").fillna("").astype(str)
     if COL_PHONE in df.columns:
         df[COL_PHONE] = df[COL_PHONE].astype("object").fillna("").astype(str)
+
     conn.update(data=df)
 
 
@@ -903,7 +929,7 @@ def confirm_approve_dialog(plate, vendor_name):
         if st.button("Ya, Luluskan", type="primary", width="stretch", key="dlg_approve_yes"):
             df.loc[df[COL_PLATE] == plate, "Status"] = "Approved"
             df.loc[df[COL_PLATE] == plate, "Notes"] = admin_note.strip()
-            safe_update(conn, df)
+            safe_update(conn, df, sheet_name="Vendors")
             log_action(conn, ADMIN_NAME, "APPROVE", plate, f"Lulus: {vendor_name}")
             st.toast(f"✅ {plate} telah diluluskan", icon="✅")
             st.rerun()
@@ -940,7 +966,7 @@ def confirm_reject_dialog(plate, vendor_name):
             else:
                 df.loc[df[COL_PLATE] == plate, "Status"] = "Rejected"
                 df.loc[df[COL_PLATE] == plate, "Notes"] = reject_reason.strip()
-                safe_update(conn, df)
+                safe_update(conn, df, sheet_name="Vendors")
                 log_action(conn, ADMIN_NAME, "REJECT", plate,
                            f"Tolak: {vendor_name} — Sebab: {reject_reason[:100]}")
                 st.toast(f"❌ {plate} telah ditolak", icon="❌")
@@ -1012,7 +1038,7 @@ def confirm_verify_payment_dialog(plate, vendor_name):
                      key=f"dlg_verify_yes_{plate}"):
             df.loc[df[COL_PLATE] == plate, "Paid"] = True
             df.loc[df[COL_PLATE] == plate, "Status"] = "Approved"
-            safe_update(conn, df)
+            safe_update(conn, df, sheet_name="Vendors")
             log_action(conn, ADMIN_NAME, "VERIFY_PAYMENT", plate,
                        f"Sahkan bayaran: {vendor_name}")
             st.toast(f"💰 {plate} bayaran disahkan", icon="💰")
@@ -1074,7 +1100,7 @@ def reject_unpaid_dialog(plate, vendor_name, vendor_type):
             else:
                 df.loc[df[COL_PLATE] == plate, "Status"] = "Rejected"
                 df.loc[df[COL_PLATE] == plate, "Notes"] = reject_note.strip()
-                safe_update(conn, df)
+                safe_update(conn, df, sheet_name="Vendors")
                 log_action(conn, ADMIN_NAME, "REJECT_UNPAID", plate,
                            f"Tolak (belum bayar): {vendor_name}")
                 st.toast(f"🚫 {plate} telah direject", icon="🚫")
@@ -1092,7 +1118,7 @@ def confirm_cancel_all_dialog(count):
     with col1:
         if st.button("Ya, Batalkan Semua", type="primary", width="stretch", key="dlg_cancel_yes"):
             df.loc[(df["Status"] == "Approved") & (~df["Paid"]), "Status"] = "Cancelled"
-            safe_update(conn, df)
+            safe_update(conn, df, sheet_name="Vendors")
             log_action(conn, ADMIN_NAME, "CANCEL_ALL", "-", f"{count} vendor dibatalkan")
             st.toast(f"✅ {count} vendor telah dibatalkan", icon="✅")
             st.rerun()
@@ -1145,7 +1171,7 @@ def edit_vendor_dialog(plate):
             df.at[idx, COL_CAT] = new_cat
             df.at[idx, COL_PLATE] = new_plate
             df.at[idx, COL_ADDON] = new_addon
-            safe_update(conn, df)
+            safe_update(conn, df, sheet_name="Vendors")
             log_action(conn, ADMIN_NAME, "EDIT", plate, f"Nama: {new_name}, Plate: {new_plate}")
             st.toast(f"✅ {plate} telah dikemaskini", icon="✅")
             st.rerun()
@@ -1174,7 +1200,7 @@ def confirm_delete_dialog(plate, vendor_name, row_signature):
 
             if matched_idx is not None:
                 df = df.drop(matched_idx).reset_index(drop=True)
-                safe_update(conn, df)
+                safe_update(conn, df, sheet_name="Vendors")
                 log_action(conn, ADMIN_NAME, "DELETE", plate, f"Padam Vendor: {vendor_name}")
                 st.toast(f"🗑️ 1 baris {plate} telah dipadam", icon="🗑️")
                 st.rerun()
