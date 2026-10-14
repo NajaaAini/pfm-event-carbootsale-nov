@@ -430,13 +430,13 @@ st.caption("Masukkan No. Pendaftaran Kenderaan/Plate Number anda untuk semak sta
 # ============================================================
 # LOAD VENDORS
 # ============================================================
-@st.cache_data(ttl=300, show_spinner="Memuatkan data...")
+@st.cache_data(ttl=60, show_spinner="Memuatkan data...")
 def load_vendors():
     conn = st.connection("gsheets", type=GSheetsConnection)
     last_err = None
     for attempt in range(3):
         try:
-            return conn.read(worksheet="Vendors", ttl=300), None
+            return conn.read(worksheet="Vendors", ttl=60), None
         except Exception as e:
             last_err = str(e)
             if attempt < 2:
@@ -444,13 +444,13 @@ def load_vendors():
     return None, last_err
 
 
-@st.cache_data(ttl=300, show_spinner=False)
+@st.cache_data(ttl=60, show_spinner=False)
 def load_payments():
     conn = st.connection("gsheets", type=GSheetsConnection)
     last_err = None
     for attempt in range(3):
         try:
-            return conn.read(worksheet="Payments", ttl=300), None
+            return conn.read(worksheet="Payments", ttl=60), None
         except Exception as e:
             last_err = str(e)
             if attempt < 2:
@@ -634,11 +634,8 @@ if submitted and query:
             if reject_reason.lower() in ("nan", "none", "null"):
                 reject_reason = ""
 
-            # ---- POPUP REJECT (sekali sahaja per sesi) ----
-            reject_dialog_key = f"reject_shown_{plate_norm}"
-            if not st.session_state.get(reject_dialog_key, False):
-                st.session_state[reject_dialog_key] = True
-                show_reject_dialog(row, plate_norm, reject_reason)
+            # ---- POPUP REJECT (naik setiap kali search) ----
+            show_reject_dialog(row, plate_norm, reject_reason)
 
             # ---- Kad status (di belakang popup) ----
             st.markdown(
@@ -727,10 +724,8 @@ if submitted and query:
                 if pd.notna(row.get("Notes")) and str(row.get("Notes")).strip():
                     admin_note_for_popup = str(row.get("Notes")).strip()
 
-                # ---- POPUP BAYARAN (sekali sahaja per sesi) ----
-                payment_dialog_key = f"payment_shown_{plate_norm}"
-                if not st.session_state.get(payment_dialog_key, False) and total_price > 0:
-                    st.session_state[payment_dialog_key] = True
+                # ---- POPUP BAYARAN (naik setiap kali search) ----
+                if total_price > 0:
                     show_payment_dialog(
                         row, plate_norm, vendor_type,
                         cat_price, deposit_amount, addon_price, total_price,
@@ -803,11 +798,8 @@ if submitted and query:
                 if arts_lot:
                     slot_items.append(("🎨 Arts/Crafts Lot", arts_lot))
 
-                # ---- POPUP (sekali sahaja per sesi) ----
-                dialog_key = f"success_shown_{plate_norm}"
-                if not st.session_state.get(dialog_key, False):
-                    st.session_state[dialog_key] = True
-                    show_success_dialog(row, plate_norm, status, paid, slot_items)
+                # ---- POPUP (naik setiap kali search) ----
+                show_success_dialog(row, plate_norm, status, paid, slot_items)
 
                 # ---- Content di belakang popup ----
                 with st.container(border=True):
