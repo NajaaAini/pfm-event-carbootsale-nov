@@ -1200,18 +1200,40 @@ def cancel_paid_dialog(plate, vendor_name, vendor_type):
             st.rerun()
 
 
-@st.dialog("Sahkan Pembatalan")
+@st.dialog("Sahkan Penolakan")
 def confirm_cancel_all_dialog(count):
-    st.warning(f"Anda akan membatalkan **{count}** vendor yang belum bayar.")
+    st.warning(f"Anda akan **reject {count}** vendor yang belum bayar.")
+    st.caption("Status akan ditukar ke **Rejected** dengan ayat default di bawah.")
     st.write("Tindakan ini tidak boleh diundur.")
+
+    default_reason = (
+        "Maaf, tempahan slot anda telah dibatalkan kerana bayaran tidak "
+        "diterima sebelum tarikh akhir yang ditetapkan. Slot anda kini "
+        "telah dibuka semula kepada vendor lain. Terima kasih atas "
+        "minat anda. 🙏"
+    )
+
+    bulk_reason = st.text_area(
+        "Ayat untuk vendor (boleh edit):",
+        value=default_reason,
+        height=140,
+        key="bulk_cancel_reason",
+    )
+
     col1, col2 = st.columns(2)
     with col1:
-        if st.button("Ya, Batalkan Semua", type="primary", width="stretch", key="dlg_cancel_yes"):
-            df.loc[(df["Status"] == "Approved") & (~df["Paid"]), "Status"] = "Cancelled"
-            safe_update(conn, df, sheet_name="Vendors")
-            log_action(conn, ADMIN_NAME, "CANCEL_ALL", "-", f"{count} vendor dibatalkan")
-            st.toast(f"✅ {count} vendor telah dibatalkan", icon="✅")
-            st.rerun()
+        if st.button("Ya, Reject Semua", type="primary", width="stretch", key="dlg_cancel_yes"):
+            if not bulk_reason.strip():
+                st.warning("⚠️ Sila masukkan ayat untuk vendor.")
+            else:
+                mask = (df["Status"] == "Approved") & (~df["Paid"])
+                df.loc[mask, "Status"] = "Rejected"
+                df.loc[mask, "Notes"] = bulk_reason.strip()
+                safe_update(conn, df, sheet_name="Vendors")
+                log_action(conn, ADMIN_NAME, "REJECT_ALL_UNPAID", "-",
+                           f"{count} vendor belum bayar ditolak")
+                st.toast(f"✅ {count} vendor telah ditolak", icon="✅")
+                st.rerun()
     with col2:
         if st.button("Batal", width="stretch", key="dlg_cancel_no"):
             st.rerun()
@@ -1776,7 +1798,7 @@ if show_section("4️⃣ Bayaran Pending"):
 
         st.markdown("")
 
-        if st.button(f"Batalkan Semua Yang Belum Bayar ({len(unpaid)})",
+        if st.button(f"Reject Semua Yang Belum Bayar ({len(unpaid)})",
                      type="secondary", key="cancel_all_s2"):
             confirm_cancel_all_dialog(len(unpaid))
 
