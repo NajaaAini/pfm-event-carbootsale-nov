@@ -647,7 +647,7 @@ def _df_to_str(df_):
 # SAMBUNGAN DATA
 # ============================================================
 conn = st.connection("gsheets", type=GSheetsConnection)
-df = load_sheet_safe(conn, "Vendors", ttl=60)
+df = load_sheet_safe(conn, "Vendors", ttl=0)
 
 if df is None:
     st.stop()
@@ -702,7 +702,7 @@ df["Notes"] = df["Notes"].astype("object").fillna("").astype(str)
 # ============================================================
 # LOAD PAYMENTS
 # ============================================================
-payments_df = load_sheet_safe(conn, "Payments", ttl=60)
+payments_df = load_sheet_safe(conn, "Payments", ttl=0)
 if payments_df is None or payments_df.empty:
     payments_df = pd.DataFrame(
         columns=[
