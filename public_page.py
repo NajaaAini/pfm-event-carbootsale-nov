@@ -421,6 +421,83 @@ def show_reject_dialog(row, plate, reject_reason):
 
 
 # ============================================================
+# POPUP — CANCEL (Cancelled)
+# ============================================================
+@st.dialog("Slot Dibatalkan", width="large")
+def show_cancel_dialog(row, plate, cancel_reason):
+    """Popup untuk vendor yang slotnya dibatalkan."""
+
+    # ---- Header ----
+    st.markdown(
+        "<div style='text-align:center; padding:0.5rem 0 1rem 0;'>"
+        "<div style='font-size:3rem; line-height:1;'>🚫</div>"
+        "<div style='font-size:1.3rem; font-weight:700; color:#991b1b; "
+        "margin-top:0.5rem;'>Slot Dibatalkan</div>"
+        "<div style='font-size:0.85rem; color:#78716c; margin-top:0.35rem;'>"
+        "Permohonan anda telah dibatalkan untuk event ini.</div>"
+        "</div>",
+        unsafe_allow_html=True,
+    )
+
+    # ---- Info vendor ----
+    cat_str = ""
+    if pd.notna(row.get(COL_CAT)) and str(row.get(COL_CAT)).strip():
+        cat_str = f" · {row[COL_CAT]}"
+
+    st.markdown(
+        f"<div style='background:#fef2f2; border:1px solid #fecaca; "
+        f"border-radius:10px; padding:0.8rem 1rem; margin:0.5rem 0;'>"
+        f"<div style='font-size:1rem; font-weight:700; color:#991b1b;'>"
+        f"🚗 {plate} — {row[COL_NAME]}</div>"
+        f"<div style='font-size:0.82rem; color:#7f1d1d; margin-top:0.2rem;'>"
+        f"{row[COL_TYPE]}{cat_str}</div>"
+        f"</div>",
+        unsafe_allow_html=True,
+    )
+
+    # ---- Ayat dari admin ----
+    if cancel_reason:
+        st.markdown(
+            "<div style='font-size:0.72rem; color:#78716c; letter-spacing:0.04em; "
+            "font-weight:600; text-transform:uppercase; margin-top:0.75rem; "
+            "margin-bottom:0.35rem;'>📋 Mesej dari Admin</div>",
+            unsafe_allow_html=True,
+        )
+        st.markdown(
+            f"<div style='background:#fff7ed; border-left:4px solid #dc2626; "
+            f"border-radius:8px; padding:0.85rem 1rem; font-size:0.88rem; "
+            f"color:#44403c; white-space:pre-wrap; line-height:1.6;'>"
+            f"{cancel_reason}</div>",
+            unsafe_allow_html=True,
+        )
+    else:
+        st.info(
+            "Untuk maklumat lanjut tentang pembatalan slot anda, "
+            "sila hubungi admin."
+        )
+
+    st.markdown("<div style='height:0.75rem;'></div>", unsafe_allow_html=True)
+
+    # ---- Button WhatsApp Admin ----
+    WA_ADMIN = "601157727459"
+    wa_text = f"Hi admin, saya nak tanya tentang pembatalan slot untuk {plate}."
+    wa_url = (
+        f"https://wa.me/{WA_ADMIN}?text="
+        + wa_text.replace(" ", "%20").replace(",", "%2C").replace(".", "%2E")
+    )
+
+    st.link_button(
+        "💬 Hubungi Admin",
+        wa_url,
+        width="stretch",
+    )
+
+    # ---- Button tutup ----
+    if st.button("Tutup", width="stretch"):
+        st.rerun()
+
+
+# ============================================================
 # TITLE
 # ============================================================
 st.title("🔍 Semak Kelayakan")
@@ -634,7 +711,7 @@ if submitted and query:
             if reject_reason.lower() in ("nan", "none", "null"):
                 reject_reason = ""
 
-            # ---- POPUP REJECT (naik setiap kali search) ----
+            # ---- POPUP REJECT ----
             show_reject_dialog(row, plate_norm, reject_reason)
 
             # ---- Kad status (di belakang popup) ----
@@ -670,6 +747,9 @@ if submitted and query:
             cancel_reason = str(row.get("Notes", "") or "").strip()
             if cancel_reason.lower() in ("nan", "none", "null"):
                 cancel_reason = ""
+
+            # ---- POPUP CANCEL ----
+            show_cancel_dialog(row, plate_norm, cancel_reason)
 
             with st.container(border=True):
                 st.error("🚫 **Slot Dibatalkan**")
@@ -724,7 +804,7 @@ if submitted and query:
                 if pd.notna(row.get("Notes")) and str(row.get("Notes")).strip():
                     admin_note_for_popup = str(row.get("Notes")).strip()
 
-                # ---- POPUP BAYARAN (naik setiap kali search) ----
+                # ---- POPUP BAYARAN ----
                 if total_price > 0:
                     show_payment_dialog(
                         row, plate_norm, vendor_type,
@@ -798,7 +878,7 @@ if submitted and query:
                 if arts_lot:
                     slot_items.append(("🎨 Arts/Crafts Lot", arts_lot))
 
-                # ---- POPUP (naik setiap kali search) ----
+                # ---- POPUP SUCCESS ----
                 show_success_dialog(row, plate_norm, status, paid, slot_items)
 
                 # ---- Content di belakang popup ----
