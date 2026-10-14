@@ -246,7 +246,7 @@ def show_success_dialog(row, plate, status, paid, slot_items):
 # POPUP — MAKLUMAT PEMBAYARAN (Approved + Belum Bayar)
 # ============================================================
 @st.dialog("💳 Maklumat Pembayaran", width="large")
-def show_payment_dialog(row, plate, vendor_type, cat_price, deposit_amount, addon_price, total_price):
+def show_payment_dialog(row, plate, vendor_type, cat_price, deposit_amount, addon_price, total_price, admin_note=""):
     """Popup maklumat bayaran untuk vendor yang dah lulus tapi belum bayar."""
 
     # ---- Header: Total besar ----
@@ -297,6 +297,22 @@ def show_payment_dialog(row, plate, vendor_type, cat_price, deposit_amount, addo
         f"margin:0.5rem 0;'>{''.join(breakdown_lines)}</div>",
         unsafe_allow_html=True,
     )
+
+    # ---- Nota dari Admin ----
+    if admin_note:
+        st.markdown(
+            "<div style='font-size:0.72rem; color:#78716c; letter-spacing:0.04em; "
+            "font-weight:700; text-transform:uppercase; margin-top:0.75rem; "
+            "margin-bottom:0.35rem;'>📝 Nota dari Admin</div>",
+            unsafe_allow_html=True,
+        )
+        st.markdown(
+            f"<div style='background:#eff6ff; border-left:4px solid #2563eb; "
+            f"border-radius:8px; padding:0.85rem 1rem; font-size:0.88rem; "
+            f"color:#44403c; white-space:pre-wrap; line-height:1.6;'>"
+            f"{admin_note}</div>",
+            unsafe_allow_html=True,
+        )
 
     st.markdown("<div style='height:0.5rem;'></div>", unsafe_allow_html=True)
 
@@ -689,13 +705,19 @@ if submitted and query:
                 addon_price = get_addon_price(addon_str_raw)
                 total_price = cat_price + deposit_amount + addon_price
 
+                # ---- Ambil nota admin untuk popup ----
+                admin_note_for_popup = ""
+                if pd.notna(row.get("Notes")) and str(row.get("Notes")).strip():
+                    admin_note_for_popup = str(row.get("Notes")).strip()
+
                 # ---- POPUP BAYARAN (sekali sahaja per sesi) ----
                 payment_dialog_key = f"payment_shown_{plate_norm}"
                 if not st.session_state.get(payment_dialog_key, False) and total_price > 0:
                     st.session_state[payment_dialog_key] = True
                     show_payment_dialog(
                         row, plate_norm, vendor_type,
-                        cat_price, deposit_amount, addon_price, total_price
+                        cat_price, deposit_amount, addon_price, total_price,
+                        admin_note=admin_note_for_popup,
                     )
 
                 # ---- KAD HARGA (compact) ----
