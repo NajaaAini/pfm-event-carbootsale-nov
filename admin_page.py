@@ -53,7 +53,6 @@ st.markdown("""
         max-width: 1440px;
     }
 
-    /* ---------- SECTION HEADER ---------- */
     .section-header {
         display: flex;
         align-items: center;
@@ -104,7 +103,6 @@ st.markdown("""
         white-space: nowrap;
     }
 
-    /* ---------- METRIC CARDS ---------- */
     [data-testid="stMetric"] {
         background: #ffffff;
         border: 1px solid var(--neutral-200);
@@ -132,7 +130,6 @@ st.markdown("""
         letter-spacing: -0.02em;
     }
 
-    /* ---------- BUTTONS ---------- */
     .stButton > button,
     .stDownloadButton > button,
     .stLinkButton > a {
@@ -163,7 +160,6 @@ st.markdown("""
         box-shadow: 0 4px 12px rgba(120, 53, 15, 0.25) !important;
     }
 
-    /* ---------- BOXES ---------- */
     .product-box {
         background: var(--neutral-50);
         border-left: 3px solid var(--brand-800);
@@ -187,7 +183,6 @@ st.markdown("""
         line-height: 1.55;
     }
 
-    /* ---------- DATAFRAME ---------- */
     [data-testid="stDataFrame"] {
         border: 1px solid var(--neutral-200);
         border-radius: var(--radius);
@@ -208,7 +203,6 @@ st.markdown("""
         border-color: var(--neutral-200) !important;
     }
 
-    /* ---------- SIDEBAR ---------- */
     [data-testid="stSidebar"] {
         background: #ffffff;
         border-right: 1px solid var(--neutral-200);
@@ -236,7 +230,6 @@ st.markdown("""
         font-weight: 700;
     }
 
-    /* ---------- INPUTS ---------- */
     .stTextInput > div > div > input,
     .stSelectbox > div > div > div,
     .stMultiSelect > div > div > div,
@@ -267,7 +260,6 @@ st.markdown("""
         box-shadow: var(--shadow-lg);
     }
 
-    /* ---------- BADGE ---------- */
     .badge {
         display: inline-block;
         padding: 0.25rem 0.65rem;
@@ -283,7 +275,6 @@ st.markdown("""
     .badge-info    { background: var(--info-bg);    color: var(--info); }
     .badge-neutral { background: var(--neutral-100); color: var(--neutral-700); }
 
-    /* ---------- SUB-HEADER ---------- */
     .sub-header {
         display: flex;
         align-items: center;
@@ -303,7 +294,6 @@ st.markdown("""
         letter-spacing: 0.06em;
     }
 
-    /* ---------- EMPTY STATE ---------- */
     .empty-state {
         text-align: center;
         padding: 2.5rem 1rem;
@@ -424,6 +414,21 @@ CANCEL_TEMPLATES = {
     ),
     "Custom (taip sendiri)": "",
 }
+
+
+# ============================================================
+# HELPER — CALLBACK TEMPLATE DROPDOWN
+# ============================================================
+def _on_reject_tpl_change(plate):
+    tpl = st.session_state.get(f"reject_tpl_{plate}", "")
+    if tpl and tpl != "Custom (taip sendiri)":
+        st.session_state[f"reject_note_{plate}"] = REJECT_TEMPLATES.get(tpl, "")
+
+
+def _on_cancel_tpl_change(plate):
+    tpl = st.session_state.get(f"cancel_tpl_{plate}", "")
+    if tpl and tpl != "Custom (taip sendiri)":
+        st.session_state[f"cancel_note_{plate}"] = CANCEL_TEMPLATES.get(tpl, "")
 
 
 # ============================================================
@@ -664,7 +669,6 @@ def _df_to_str(df_):
 # ============================================================
 conn = st.connection("gsheets", type=GSheetsConnection)
 
-# ttl=0 → selalu ambil data fresh dari sheet (elak overwrite data lama)
 df = load_sheet_safe(conn, "Vendors", ttl=0)
 
 if df is None:
@@ -720,7 +724,6 @@ df["Notes"] = df["Notes"].astype("object").fillna("").astype(str)
 # ============================================================
 # LOAD PAYMENTS
 # ============================================================
-# ttl=0 → selalu ambil data fresh dari sheet
 payments_df = load_sheet_safe(conn, "Payments", ttl=0)
 if payments_df is None or payments_df.empty:
     payments_df = pd.DataFrame(
@@ -842,19 +845,12 @@ def others_pending():
 
 
 def safe_update(conn, df, sheet_name="Vendors"):
-    """
-    Update sheet dengan safety check.
-    Elak overwrite data yang hilang — kalau df baru lebih kecil
-    dari data fresh di sheet, block update dan tunjuk error.
-    """
-    # Ambil data fresh dari sheet (tanpa cache)
     try:
         fresh = load_sheet_safe(conn, sheet_name, ttl=0)
     except Exception:
         fresh = None
 
     if fresh is not None and len(fresh) > 0:
-        # Safety: kalau df baru lebih kecil dari fresh → bahaya
         if len(df) < len(fresh):
             st.error(
                 f"⚠️ **Safety block**: Data yang nak diupdate ada **{len(df)}** baris, "
@@ -897,6 +893,7 @@ with st.sidebar:
             "4️⃣ Bayaran Pending",
             "5️⃣ Vendor Diluluskan",
             "6️⃣ Semua Vendor",
+            "7️⃣ ⚙️ Tindakan Admin",
         ],
         label_visibility="visible",
         key="admin_nav",
@@ -1014,7 +1011,6 @@ def confirm_verify_payment_dialog(plate, vendor_name):
         unsafe_allow_html=True,
     )
 
-    # Preview bukti bayaran
     info = get_vendor_payment_info(plate)
     proof_url = info.get("proof_url", "")
     ts_display = format_timestamp_display(info.get("timestamp", ""))
@@ -1025,14 +1021,12 @@ def confirm_verify_payment_dialog(plate, vendor_name):
         if ts_display and ts_display != "—":
             st.caption(f"⏰ Dihantar: {ts_display}")
 
-    # Preview status semasa
     vendor_row = df[df[COL_PLATE] == plate]
     if not vendor_row.empty:
         cur_status = vendor_row.iloc[0]["Status"]
         cur_paid = vendor_row.iloc[0]["Paid"]
         st.caption(f"Status semasa: **{cur_status}** · Paid: **{cur_paid}**")
 
-    # Preview lot yang dipilih
     lot_parts = []
     if info.get("parking_lot"):
         lot_parts.append(f"Parking: {info['parking_lot']}")
@@ -1090,18 +1084,34 @@ def reject_unpaid_dialog(plate, vendor_name, vendor_type):
 
     st.markdown("")
 
-    template_choice = st.selectbox(
+    # Pre-fill Notes lama
+    existing_note = ""
+    vendor_row = df[df[COL_PLATE] == plate]
+    if not vendor_row.empty:
+        val = vendor_row.iloc[0].get("Notes", "")
+        if pd.notna(val) and str(val).strip() and str(val).strip().lower() not in ("nan", "none", "null"):
+            existing_note = str(val).strip()
+
+    note_key = f"reject_note_{plate}"
+    if note_key not in st.session_state:
+        st.session_state[note_key] = existing_note
+
+    tpl_key = f"reject_tpl_{plate}"
+    if tpl_key not in st.session_state:
+        st.session_state[tpl_key] = "Custom (taip sendiri)"
+
+    st.selectbox(
         "Pilih template ayat:",
         options=list(REJECT_TEMPLATES.keys()),
-        key=f"reject_tpl_{plate}",
+        key=tpl_key,
+        on_change=_on_reject_tpl_change,
+        args=(plate,),
     )
-    default_text = REJECT_TEMPLATES.get(template_choice, "")
 
     reject_note = st.text_area(
         "Ayat untuk vendor (boleh edit):",
-        value=default_text,
+        key=note_key,
         height=160,
-        key=f"reject_note_{plate}",
         help="Ayat ini akan dipaparkan di page Semak Kelayakan.",
     )
 
@@ -1119,10 +1129,14 @@ def reject_unpaid_dialog(plate, vendor_name, vendor_type):
                 safe_update(conn, df, sheet_name="Vendors")
                 log_action(conn, ADMIN_NAME, "REJECT_UNPAID", plate,
                            f"Tolak (belum bayar): {vendor_name}")
+                st.session_state.pop(note_key, None)
+                st.session_state.pop(tpl_key, None)
                 st.toast(f"🚫 {plate} telah direject", icon="🚫")
                 st.rerun()
     with col2:
         if st.button("Batal", width="stretch", key=f"dlg_reject_unpaid_no_{plate}"):
+            st.session_state.pop(note_key, None)
+            st.session_state.pop(tpl_key, None)
             st.rerun()
 
 
@@ -1151,7 +1165,6 @@ def cancel_paid_dialog(plate, vendor_name, vendor_type):
         unsafe_allow_html=True,
     )
 
-    # ---- Preview payment info ----
     info = get_vendor_payment_info(plate)
     ts_display = format_timestamp_display(info.get("timestamp", ""))
     proof_url = info.get("proof_url", "")
@@ -1161,19 +1174,34 @@ def cancel_paid_dialog(plate, vendor_name, vendor_type):
 
     st.markdown("---")
 
-    # ---- Template ayat ----
-    template_choice = st.selectbox(
+    # Pre-fill Notes lama
+    existing_note = ""
+    vendor_row = df[df[COL_PLATE] == plate]
+    if not vendor_row.empty:
+        val = vendor_row.iloc[0].get("Notes", "")
+        if pd.notna(val) and str(val).strip() and str(val).strip().lower() not in ("nan", "none", "null"):
+            existing_note = str(val).strip()
+
+    note_key = f"cancel_note_{plate}"
+    if note_key not in st.session_state:
+        st.session_state[note_key] = existing_note
+
+    tpl_key = f"cancel_tpl_{plate}"
+    if tpl_key not in st.session_state:
+        st.session_state[tpl_key] = "Custom (taip sendiri)"
+
+    st.selectbox(
         "Pilih template ayat untuk vendor:",
         options=list(CANCEL_TEMPLATES.keys()),
-        key=f"cancel_tpl_{plate}",
+        key=tpl_key,
+        on_change=_on_cancel_tpl_change,
+        args=(plate,),
     )
-    default_text = CANCEL_TEMPLATES.get(template_choice, "")
 
     cancel_note = st.text_area(
         "Ayat untuk vendor (boleh edit):",
-        value=default_text,
+        key=note_key,
         height=140,
-        key=f"cancel_note_{plate}",
         help="Ayat ini akan dipaparkan di page Semak Kelayakan.",
     )
 
@@ -1193,10 +1221,14 @@ def cancel_paid_dialog(plate, vendor_name, vendor_type):
                     conn, ADMIN_NAME, "CANCEL_PAID", plate,
                     f"Cancel (dah bayar): {vendor_name}"
                 )
+                st.session_state.pop(note_key, None)
+                st.session_state.pop(tpl_key, None)
                 st.toast(f"🚫 {plate} telah dicancel", icon="🚫")
                 st.rerun()
     with col2:
         if st.button("Batal", width="stretch", key=f"dlg_cancel_paid_no_{plate}"):
+            st.session_state.pop(note_key, None)
+            st.session_state.pop(tpl_key, None)
             st.rerun()
 
 
@@ -1605,510 +1637,4 @@ if show_section("2️⃣ Permohonan Menunggu"):
                                 edit_vendor_dialog(plate)
 
     st.divider()
-
-
-# ============================================================
-# SECTION 3 — SAHKAN BAYARAN
-# ============================================================
-if show_section("3️⃣ Rekod Bayaran (Baru)"):
-    # Ambil vendor yang belum disahkan bayaran (Paid=False) tapi ada bukti upload
-    candidates = df[
-        (~df["Paid"]) &
-        (df["Status"].isin(["Pending", "Approved"]))
-    ]
-
-    pending_verify = []
-    for _, row in candidates.iterrows():
-        plate = row[COL_PLATE]
-        info = get_vendor_payment_info(plate)
-        proof_url = info.get("proof_url", "")
-
-        if proof_url:
-            pending_verify.append({
-                "Plate": plate,
-                "Nama": row[COL_NAME],
-                "Telefon": format_phone_display(row.get(COL_PHONE, "")),
-                "Kategori": str(row.get(COL_TYPE, "")).strip(),
-                "F&B Category": clean_cat_str(row.get(COL_CAT, "")) or "—",
-                "Total": format_rm(get_vendor_total(row.get(COL_TYPE, ""), row.get(COL_ADDON, ""))),
-                "Status": str(row.get("Status", "")).strip(),
-                "Timestamp": format_timestamp_display(info.get("timestamp", "")),
-                "Bukti": proof_url,
-            })
-
-    section_header("3", "Sahkan Bayaran",
-                   "Vendor yang sudah upload bukti bayaran — menunggu pengesahan admin",
-                   len(pending_verify))
-
-    if not pending_verify:
-        st.markdown(
-            "<div class='empty-state'>"
-            "<div class='empty-state-icon'>✅</div>"
-            "<div class='empty-state-text'>Tiada bayaran yang perlu disahkan.</div>"
-            "</div>",
-            unsafe_allow_html=True,
-        )
-    else:
-        new_df = pd.DataFrame(pending_verify)
-
-        new_filter_col, _ = st.columns([1, 3])
-        with new_filter_col:
-            new_category_filter = st.selectbox(
-                "Kategori",
-                options=["Semua", "Car Boot Sales", "F&B", "Food Truck", "Arts/Crafts & Others"],
-                key="new_pay_filter_category",
-            )
-
-        if new_category_filter != "Semua":
-            new_df = new_df[new_df["Kategori"] == new_category_filter]
-
-        if new_df.empty:
-            st.info("Tiada vendor dalam kategori ini.")
-        else:
-            st.caption(f"Menunjukkan **{len(new_df)}** vendor menunggu pengesahan bayaran.")
-
-            new_df = new_df.sort_values(["Kategori", "Plate"]).reset_index(drop=True)
-
-            display_cols = ["Plate", "Nama", "Telefon", "Kategori",
-                            "F&B Category", "Total", "Status", "Timestamp", "Bukti"]
-            new_display = new_df[display_cols].copy()
-
-            for c in new_display.columns:
-                if c != "Bukti":
-                    new_display[c] = new_display[c].astype(str)
-
-            new_table_height = min(max(len(new_display) * 35 + 45, 200), 400)
-
-            st.dataframe(
-                new_display,
-                hide_index=True,
-                width="stretch",
-                height=new_table_height,
-                column_config={
-                    "Plate": st.column_config.TextColumn("Plate", width="small"),
-                    "Nama": st.column_config.TextColumn("Nama", width="medium"),
-                    "Telefon": st.column_config.TextColumn("Telefon", width="small"),
-                    "Kategori": st.column_config.TextColumn("Kategori", width="medium"),
-                    "F&B Category": st.column_config.TextColumn("F&B Cat", width="small"),
-                    "Total": st.column_config.TextColumn("Total", width="small"),
-                    "Status": st.column_config.TextColumn("Status", width="small"),
-                    "Timestamp": st.column_config.TextColumn("Timestamp", width="medium"),
-                    "Bukti": st.column_config.LinkColumn("Bukti", display_text="Buka 📄", width="small"),
-                },
-            )
-
-            st.markdown("")
-            sub_header("💰 Sahkan Bayaran")
-            st.caption("Pilih vendor → klik Sahkan. Vendor akan jadi Approved + Paid.")
-
-            vendor_options_map = {}
-            for _, r in new_df.iterrows():
-                key = f"{r['Plate']} — {r['Nama']}"
-                if key not in vendor_options_map:
-                    vendor_options_map[key] = r["Plate"]
-
-            approve_options = ["— Pilih vendor —"] + list(vendor_options_map.keys())
-
-            ac1, ac2 = st.columns([3, 1])
-            with ac1:
-                approve_choice = st.selectbox(
-                    "Vendor untuk sahkan bayaran",
-                    options=approve_options,
-                    key="new_pay_approve_select",
-                    label_visibility="collapsed",
-                )
-            with ac2:
-                if st.button("💰 Sahkan Bayaran", type="primary", width="stretch",
-                             key="new_pay_approve_btn"):
-                    if approve_choice and approve_choice != "— Pilih vendor —":
-                        plate_pick = vendor_options_map[approve_choice]
-                        row_pick = df[df[COL_PLATE] == plate_pick].iloc[0]
-                        confirm_verify_payment_dialog(plate_pick, row_pick[COL_NAME])
-                    else:
-                        st.error("Sila pilih vendor.")
-
-    st.divider()
-
-
-# ============================================================
-# SECTION 4 — BAYARAN PENDING (Approved + Belum Bayar)
-# ============================================================
-cutoff_date = EVENT_DATE - timedelta(days=PAYMENT_DEADLINE_DAYS)
-
-if show_section("4️⃣ Bayaran Pending"):
-    today = date.today()
-    days_left = (cutoff_date - today).days
-
-    unpaid_base = df[(df["Status"] == "Approved") & (~df["Paid"])]
-    section_header("4", "Bayaran Pending",
-                   f"Vendor diluluskan yang belum bayar — deadline {cutoff_date.strftime('%d %b %Y')}",
-                   len(unpaid_base))
-
-    if today > cutoff_date:
-        st.caption(f"⚠️ Deadline telah berlalu ({abs(days_left)} hari lepas)")
-    else:
-        st.caption(f"📅 Deadline — {days_left} hari lagi")
-
-    st.markdown("")
-
-    filter_col1, _ = st.columns([1, 3])
-    with filter_col1:
-        unpaid_category_filter = st.selectbox(
-            "Kategori",
-            options=["Semua", "Car Boot Sales", "F&B", "Food Truck", "Arts/Crafts & Others"],
-            key="unpaid_category_filter",
-        )
-
-    unpaid = unpaid_base.copy()
-    if unpaid_category_filter != "Semua":
-        unpaid = unpaid[unpaid[COL_TYPE] == unpaid_category_filter]
-
-    if unpaid.empty:
-        st.success("✅ Semua vendor yang diluluskan telah membuat bayaran.")
-    else:
-        st.warning(f"⚠️ **{len(unpaid)}** vendor belum membuat bayaran.")
-
-        unpaid_display = unpaid[[COL_PLATE, COL_NAME, COL_PHONE, COL_TYPE, COL_CAT]].copy()
-        unpaid_display[COL_PHONE] = unpaid_display[COL_PHONE].apply(format_phone_display)
-        st.dataframe(_df_to_str(unpaid_display), hide_index=True, width="stretch")
-
-        st.markdown("")
-        sub_header("🚫 Reject Vendor (Belum Bayar)")
-
-        reject_options = ["— Pilih vendor —"] + [
-            f"{row[COL_PLATE]} — {row[COL_NAME]}" for _, row in unpaid.iterrows()
-        ]
-
-        rc1, rc2 = st.columns([3, 1])
-        with rc1:
-            reject_choice = st.selectbox(
-                "Vendor",
-                options=reject_options,
-                key="reject_unpaid_select_s2",
-                label_visibility="collapsed",
-            )
-        with rc2:
-            if st.button("🚫 Reject", type="primary", width="stretch", key="reject_unpaid_btn_s2"):
-                if reject_choice and reject_choice != "— Pilih vendor —":
-                    plate_pick = reject_choice.split(" — ")[0]
-                    row_pick = unpaid[unpaid[COL_PLATE] == plate_pick].iloc[0]
-                    reject_unpaid_dialog(plate_pick, row_pick[COL_NAME], row_pick[COL_TYPE])
-                else:
-                    st.error("Sila pilih vendor.")
-
-        st.markdown("")
-
-        if st.button(f"Reject Semua Yang Belum Bayar ({len(unpaid)})",
-                     type="secondary", key="cancel_all_s2"):
-            confirm_cancel_all_dialog(len(unpaid))
-
-    st.divider()
-
-
-# ============================================================
-# SECTION 5 — VENDOR DILULUSKAN (Approved + Paid)
-# ============================================================
-if show_section("5️⃣ Vendor Diluluskan"):
-    approved_paid = df[(df["Status"] == "Approved") & (df["Paid"])]
-    section_header("5", "Vendor Diluluskan",
-                   "Vendor yang telah diluluskan & disahkan bayaran",
-                   len(approved_paid))
-
-    if approved_paid.empty:
-        st.markdown(
-            "<div class='empty-state'>"
-            "<div class='empty-state-icon'>✅</div>"
-            "<div class='empty-state-text'>Belum ada vendor yang disahkan bayaran.</div>"
-            "</div>",
-            unsafe_allow_html=True,
-        )
-    else:
-        total_car_boot = len(approved_paid[approved_paid[COL_TYPE] == CAT_CARBOOT])
-        total_fb = len(approved_paid[approved_paid[COL_TYPE] == CAT_FB])
-        total_ft = len(approved_paid[approved_paid[COL_TYPE] == CAT_FT])
-        total_ot = len(approved_paid[~approved_paid[COL_TYPE].isin([CAT_CARBOOT, CAT_FB, CAT_FT])])
-
-        mc1, mc2, mc3, mc4, mc5 = st.columns(5)
-        mc1.metric("Car Boot", total_car_boot)
-        mc2.metric("F&B", total_fb)
-        mc3.metric("Food Truck", total_ft)
-        mc4.metric("Others", total_ot)
-        mc5.metric("Total", len(approved_paid))
-
-        st.markdown("---")
-
-        vf1, vf2 = st.columns([1, 3])
-        with vf1:
-            vd_category_filter = st.selectbox(
-                "Kategori",
-                options=["Semua", "Car Boot Sales", "F&B", "Food Truck", "Arts/Crafts & Others"],
-                key="vd_category_filter",
-            )
-
-        vd_df = approved_paid.copy()
-        if vd_category_filter != "Semua":
-            vd_df = vd_df[vd_df[COL_TYPE] == vd_category_filter]
-
-        if vd_df.empty:
-            st.info("Tiada vendor dalam kategori ini.")
-        else:
-            vd_rows = []
-            for _, row in vd_df.iterrows():
-                plate = row[COL_PLATE]
-                info = get_vendor_payment_info(plate)
-
-                row_type = str(row[COL_TYPE]).strip()
-                if row_type == CAT_CARBOOT:
-                    lot_val = info["parking_lot"]
-                elif row_type == CAT_FB:
-                    lot_val = info["fnb_lot"]
-                elif row_type == CAT_FT:
-                    lot_val = info.get("ft_lot", "") or info["fnb_lot"]
-                elif row_type == CAT_ARTS:
-                    lot_val = info["arts_lot"]
-                else:
-                    lot_val = info["parking_lot"] or info["fnb_lot"]
-
-                vd_rows.append({
-                    "Plate": plate,
-                    "Nama": row[COL_NAME],
-                    "Telefon": format_phone_display(row.get(COL_PHONE, "")),
-                    "Kategori": row_type,
-                    "F&B Category": clean_cat_str(row.get(COL_CAT, "")) or "—",
-                    "Lot": lot_val or "—",
-                    "Total": format_rm(get_vendor_total(row_type, row.get(COL_ADDON, ""))),
-                    "Bukti": info.get("proof_url", "") or "—",
-                })
-
-            vd_display = pd.DataFrame(vd_rows)
-
-            for c in vd_display.columns:
-                if c != "Bukti":
-                    vd_display[c] = vd_display[c].astype(str)
-
-            st.caption(f"Menunjukkan **{len(vd_display)}** vendor yang telah disahkan bayaran.")
-
-            vd_height = min(max(len(vd_display) * 35 + 45, 250), 600)
-
-            st.dataframe(
-                vd_display,
-                hide_index=True,
-                width="stretch",
-                height=vd_height,
-                column_config={
-                    "Plate": st.column_config.TextColumn("Plate", width="small"),
-                    "Nama": st.column_config.TextColumn("Nama", width="medium"),
-                    "Telefon": st.column_config.TextColumn("Telefon", width="small"),
-                    "Kategori": st.column_config.TextColumn("Kategori", width="medium"),
-                    "F&B Category": st.column_config.TextColumn("F&B Category", width="medium"),
-                    "Lot": st.column_config.TextColumn("Lot", width="small"),
-                    "Total": st.column_config.TextColumn("Total", width="small"),
-                    "Bukti": st.column_config.LinkColumn("Bukti", display_text="Buka 📄", width="small"),
-                },
-            )
-
-            # ---- Cancel Vendor (Dah Bayar) ----
-            st.markdown("")
-            sub_header("🚫 Cancel Vendor (Dah Bayar)")
-            st.caption(
-                "Guna ni kalau vendor sendiri nak cancel (contoh: tak dapat hadir). "
-                "Paid akan kekal TRUE untuk rekod."
-            )
-
-            cancel_options = ["— Pilih vendor —"] + [
-                f"{row[COL_PLATE]} — {row[COL_NAME]}"
-                for _, row in vd_df.iterrows()
-            ]
-
-            cc1, cc2 = st.columns([3, 1])
-            with cc1:
-                cancel_choice = st.selectbox(
-                    "Vendor untuk cancel",
-                    options=cancel_options,
-                    key="cancel_paid_select_s5",
-                    label_visibility="collapsed",
-                )
-            with cc2:
-                if st.button("🚫 Cancel", type="primary", width="stretch",
-                             key="cancel_paid_btn_s5"):
-                    if cancel_choice and cancel_choice != "— Pilih vendor —":
-                        plate_pick = cancel_choice.split(" — ")[0]
-                        row_pick = vd_df[vd_df[COL_PLATE] == plate_pick].iloc[0]
-                        cancel_paid_dialog(plate_pick, row_pick[COL_NAME], row_pick[COL_TYPE])
-                    else:
-                        st.error("Sila pilih vendor.")
-
-    st.divider()
-
-
-# ============================================================
-# SECTION 6 — SEMUA VENDOR
-# ============================================================
-if show_all:
-    section_header("6", "Semua Vendor", "Senarai penuh vendor + muat turun CSV", len(df))
-
-    try:
-        form_url = st.secrets["event"].get("google_form_responses_url", "")
-    except Exception:
-        form_url = ""
-    try:
-        sheet_url = st.secrets["connections"]["gsheets"]["spreadsheet"]
-    except Exception:
-        sheet_url = ""
-
-    quick_col1, quick_col2 = st.columns(2)
-    with quick_col1:
-        if form_url:
-            st.markdown(f"""
-            <a href="{form_url}" target="_blank" style="
-                display: flex; align-items: center; justify-content: center; gap: 0.5rem;
-                background-color: #78350f; color: #ffffff; padding: 0.6rem 1rem;
-                border-radius: 10px; text-decoration: none; font-weight: 600; font-size: 0.85rem;
-            ">📋 Buka Google Form Responses</a>
-            """, unsafe_allow_html=True)
-    with quick_col2:
-        if sheet_url:
-            st.markdown(f"""
-            <a href="{sheet_url}" target="_blank" style="
-                display: flex; align-items: center; justify-content: center; gap: 0.5rem;
-                background-color: #ffffff; color: #78350f; padding: 0.6rem 1rem;
-                border-radius: 10px; text-decoration: none; font-weight: 600; font-size: 0.85rem;
-                border: 1px solid #d6c4a3;
-            ">📊 Buka Google Sheet</a>
-            """, unsafe_allow_html=True)
-
-    st.markdown("<div style='height: 1rem;'></div>", unsafe_allow_html=True)
-    st.markdown("---")
-
-    all_f1, all_f2, all_f3 = st.columns([2, 2, 3])
-
-    with all_f1:
-        status_options = df["Status"].dropna().unique().tolist()
-        status_filter = st.multiselect(
-            "Status", options=status_options, default=status_options, key="all_status_filter"
-        )
-    with all_f2:
-        all_category_filter = st.selectbox(
-            "Kategori",
-            options=["Semua", "Car Boot Sales", "F&B", "Food Truck", "Arts/Crafts & Others"],
-            key="all_category_filter",
-        )
-    with all_f3:
-        all_search = st.text_input(
-            "🔍 Cari (Plate / Nama / Telefon)",
-            placeholder="Contoh: PJL3465 atau Cute Club",
-            key="all_search",
-        ).strip()
-
-    filtered_all = df[df["Status"].isin(status_filter)]
-
-    if all_category_filter != "Semua":
-        filtered_all = filtered_all[filtered_all[COL_TYPE] == all_category_filter]
-
-    if all_search:
-        q = all_search.lower()
-        filtered_all = filtered_all[
-            filtered_all[COL_PLATE].astype(str).str.lower().str.contains(q, na=False)
-            | filtered_all[COL_NAME].astype(str).str.lower().str.contains(q, na=False)
-            | filtered_all[COL_PHONE].astype(str).str.lower().str.contains(q, na=False)
-        ]
-
-    display_df = filtered_all.copy()
-    display_df["Timestamp"] = display_df[COL_PLATE].apply(
-        lambda p: format_timestamp_display(get_vendor_payment_info(p)["timestamp"]))
-    display_df["Parking Lot"] = display_df[COL_PLATE].apply(
-        lambda p: get_vendor_payment_info(p)["parking_lot"] or "-")
-    display_df["F&B Lot"] = display_df[COL_PLATE].apply(
-        lambda p: get_vendor_payment_info(p)["fnb_lot"] or "-")
-    display_df["Food Truck Lot"] = display_df[COL_PLATE].apply(
-        lambda p: get_vendor_payment_info(p).get("ft_lot", "") or "-")
-    display_df["Arts & Crafts Lot"] = display_df[COL_PLATE].apply(
-        lambda p: get_vendor_payment_info(p)["arts_lot"] or "-")
-
-    display_df["Total Price"] = display_df.apply(
-        lambda r: format_rm(get_vendor_total(r[COL_TYPE], r.get(COL_ADDON, ""))), axis=1)
-
-    drop_exact = {
-        "Media Sosial Perniagaan (Jika Ada)",
-        "Notes", "TOTAL PRICE", "Jenis Model Kenderaan", "Email address", "Nama/Name",
-    }
-    drop_contains = [
-        "Media Sosial Perniagaan", "Jenis Model Kenderaan", "Email address",
-        "TERMA DAN SYARAT", "IC (",
-    ]
-
-    def _should_drop(col_name):
-        cname = str(col_name).strip()
-        if cname in drop_exact:
-            return True
-        for pat in drop_contains:
-            if pat in cname:
-                return True
-        if cname == "Notes" or cname == "":
-            return True
-        if cname.startswith("Unnamed:"):
-            return True
-        if re.fullmatch(r"Column\s*\d+", cname, flags=re.IGNORECASE):
-            return True
-        if cname.lower() in ("nan", "none", "nat", "null"):
-            return True
-        return False
-
-    display_df = display_df[[c for c in display_df.columns if not _should_drop(c)]]
-
-    if COL_PHONE in display_df.columns:
-        display_df[COL_PHONE] = display_df[COL_PHONE].apply(format_phone_display)
-
-    priority_cols = [COL_PLATE, COL_NAME, COL_PHONE, COL_TYPE, COL_CAT,
-                     "Parking Lot", "F&B Lot", "Food Truck Lot", "Arts & Crafts Lot",
-                     "Timestamp", "Total Price"]
-    ordered_cols = [c for c in priority_cols if c in display_df.columns] + \
-                   [c for c in display_df.columns if c not in priority_cols]
-    display_df = display_df[ordered_cols]
-
-    display_df = _df_to_str(display_df)
-
-    table_height = min(max(len(display_df) * 35 + 45, 250), 600)
-    st.dataframe(display_df, hide_index=True, width="stretch", height=table_height)
-
-    st.markdown("<div style='height: 1rem;'></div>", unsafe_allow_html=True)
-
-    sub_header("🗑️ Padam 1 Baris")
-    st.caption("Kalau ada duplicate plate, pilih **baris tepat** untuk dipadam — baris lain akan kekal.")
-
-    display_df_reset = display_df.reset_index(drop=True)
-    delete_options = ["— Pilih baris —"] + [
-        f"Baris {i+1}: {display_df_reset.iloc[i][COL_PLATE]} — {display_df_reset.iloc[i][COL_NAME]}"
-        for i in range(len(display_df_reset))
-    ]
-
-    act_col1, act_col2 = st.columns([3, 1])
-    with act_col1:
-        delete_choice = st.selectbox(
-            "Pilih baris untuk dipadam",
-            options=delete_options,
-            key="delete_row_select",
-            label_visibility="collapsed",
-        )
-    with act_col2:
-        if st.button("🗑️ Padam", type="primary", width="stretch"):
-            if delete_choice and delete_choice != "— Pilih baris —":
-                idx_pick = delete_options.index(delete_choice) - 1
-                row_pick = display_df_reset.iloc[idx_pick]
-                plate_pick = row_pick[COL_PLATE]
-                name_pick = row_pick[COL_NAME]
-                row_signature = tuple(str(row_pick.get(c, "")) for c in df.columns)
-                confirm_delete_dialog(plate_pick, name_pick, row_signature)
-            else:
-                st.error("Sila pilih baris.")
-
-    st.markdown("<div style='height: 0.5rem;'></div>", unsafe_allow_html=True)
-
-    csv_all = display_df.to_csv(index=False).encode("utf-8-sig")
-    st.download_button(
-        "📥 Muat Turun CSV (Semua Vendor)",
-        data=csv_all,
-        file_name=f"vendors_{datetime.now().strftime('%Y%m%d_%H%M')}.csv",
-        mime="text/csv",
-        width="content",
-    )
+    
