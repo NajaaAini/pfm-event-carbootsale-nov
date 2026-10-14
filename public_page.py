@@ -631,6 +631,8 @@ if submitted and query:
         # ---- REJECTED ----
         elif status == "Rejected":
             reject_reason = str(row.get("Notes", "") or "").strip()
+            if reject_reason.lower() in ("nan", "none", "null"):
+                reject_reason = ""
 
             # ---- POPUP REJECT (sekali sahaja per sesi) ----
             reject_dialog_key = f"reject_shown_{plate_norm}"
@@ -668,9 +670,30 @@ if submitted and query:
 
         # ---- CANCELLED ----
         elif status == "Cancelled":
+            cancel_reason = str(row.get("Notes", "") or "").strip()
+            if cancel_reason.lower() in ("nan", "none", "null"):
+                cancel_reason = ""
+
             with st.container(border=True):
                 st.error("🚫 **Slot Dibatalkan**")
-                st.caption("Bayaran tidak diterima sebelum tarikh akhir.")
+                if not cancel_reason:
+                    st.caption("Hubungi admin untuk maklumat lanjut.")
+
+            # ---- Ayat dari admin (kalau ada) ----
+            if cancel_reason:
+                st.markdown(
+                    "<div style='font-size:0.72rem; color:#78716c; letter-spacing:0.04em; "
+                    "font-weight:600; text-transform:uppercase; margin-top:0.75rem; "
+                    "margin-bottom:0.35rem;'>📋 Mesej dari Admin</div>",
+                    unsafe_allow_html=True,
+                )
+                st.markdown(
+                    f"<div style='background:#fef2f2; border-left:4px solid #dc2626; "
+                    f"border-radius:8px; padding:0.85rem 1rem; font-size:0.88rem; "
+                    f"color:#44403c; white-space:pre-wrap; line-height:1.6;'>"
+                    f"{cancel_reason}</div>",
+                    unsafe_allow_html=True,
+                )
 
         # ---- APPROVED ----
         elif status == "Approved":
