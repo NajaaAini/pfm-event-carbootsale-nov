@@ -342,12 +342,6 @@ def show_payment_dialog(row, plate, vendor_type, cat_price, deposit_amount, addo
 
     st.markdown("<div style='height:0.5rem;'></div>", unsafe_allow_html=True)
 
-    # ---- Deadline ----
-    st.error(
-        "📢 **Deadline:** Full payment sebelum **Isnin (12/10/2026) 11:00 pagi**. "
-        "Selepas itu slot akan **dibatalkan**."
-    )
-
     # ---- Nota penting ----
     st.warning("📄 Sila upload bukti bayaran dalam **format PDF sahaja**.")
 
@@ -739,12 +733,6 @@ if submitted and query:
                         f"</div>",
                         unsafe_allow_html=True,
                     )
-
-                # ---- DEADLINE (compact) ----
-                st.error(
-                    "📢 **Deadline:** Full payment sebelum **Isnin (12/10/2026) 11:00 pagi**. "
-                    "Selepas itu slot akan **dibatalkan**."
-                )
 
                 # ---- MAKLUMAT BANK (2 columns, compact) ----
                 with st.container(border=True):
