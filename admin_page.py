@@ -411,6 +411,22 @@ REJECT_TEMPLATES = {
 
 
 # ============================================================
+# CANCEL TEMPLATES (untuk vendor yang dah bayar)
+# ============================================================
+CANCEL_TEMPLATES = {
+    "Vendor cancel sendiri": (
+        "Permohonan anda telah dibatalkan atas permintaan anda sendiri. "
+        "Slot anda telah dilepaskan. Terima kasih kerana berminat. 🙏"
+    ),
+    "Vendor tak dapat hadir": (
+        "Slot anda telah dibatalkan kerana ketidakupayaan untuk hadir ke event. "
+        "Terima kasih atas maklum balas anda. 🙏"
+    ),
+    "Custom (taip sendiri)": "",
+}
+
+
+# ============================================================
 # COLUMN RESOLVER
 # ============================================================
 def _norm_key(s):
@@ -1110,6 +1126,80 @@ def reject_unpaid_dialog(plate, vendor_name, vendor_type):
             st.rerun()
 
 
+@st.dialog("🚫 Cancel Vendor (Dah Bayar)", width="large")
+def cancel_paid_dialog(plate, vendor_name, vendor_type):
+    st.markdown(
+        "<div style='text-align:center; padding:0.5rem 0 1rem 0;'>"
+        "<div style='font-size:3rem; line-height:1;'>🚫</div>"
+        "<div style='font-size:1.3rem; font-weight:700; color:#991b1b; "
+        "margin-top:0.5rem;'>Cancel Vendor Ini?</div>"
+        "<div style='font-size:0.85rem; color:#78716c; margin-top:0.35rem;'>"
+        "Vendor ini <b>dah bayar</b>. Status akan ditukar ke <b>Cancelled</b>."
+        "</div>"
+        "</div>",
+        unsafe_allow_html=True,
+    )
+
+    st.markdown(
+        f"<div style='background:#fef2f2; border:1px solid #fecaca; "
+        f"border-radius:10px; padding:0.8rem 1rem; margin:0.5rem 0;'>"
+        f"<div style='font-size:1rem; font-weight:700; color:#991b1b;'>"
+        f"🚗 {plate} — {vendor_name}</div>"
+        f"<div style='font-size:0.82rem; color:#7f1d1d; margin-top:0.2rem;'>"
+        f"Kategori: {vendor_type}</div>"
+        f"</div>",
+        unsafe_allow_html=True,
+    )
+
+    # ---- Preview payment info ----
+    info = get_vendor_payment_info(plate)
+    ts_display = format_timestamp_display(info.get("timestamp", ""))
+    proof_url = info.get("proof_url", "")
+
+    if proof_url:
+        st.caption(f"💰 Bukti bayaran: [Buka 📄]({proof_url}) · {ts_display}")
+
+    st.markdown("---")
+
+    # ---- Template ayat ----
+    template_choice = st.selectbox(
+        "Pilih template ayat untuk vendor:",
+        options=list(CANCEL_TEMPLATES.keys()),
+        key=f"cancel_tpl_{plate}",
+    )
+    default_text = CANCEL_TEMPLATES.get(template_choice, "")
+
+    cancel_note = st.text_area(
+        "Ayat untuk vendor (boleh edit):",
+        value=default_text,
+        height=140,
+        key=f"cancel_note_{plate}",
+        help="Ayat ini akan dipaparkan di page Semak Kelayakan.",
+    )
+
+    st.markdown("---")
+
+    col1, col2 = st.columns(2)
+    with col1:
+        if st.button("🚫 Ya, Cancel", type="primary", width="stretch",
+                     key=f"dlg_cancel_paid_yes_{plate}"):
+            if not cancel_note.strip():
+                st.warning("⚠️ Sila masukkan ayat untuk vendor.")
+            else:
+                df.loc[df[COL_PLATE] == plate, "Status"] = "Cancelled"
+                df.loc[df[COL_PLATE] == plate, "Notes"] = cancel_note.strip()
+                safe_update(conn, df, sheet_name="Vendors")
+                log_action(
+                    conn, ADMIN_NAME, "CANCEL_PAID", plate,
+                    f"Cancel (dah bayar): {vendor_name}"
+                )
+                st.toast(f"🚫 {plate} telah dicancel", icon="🚫")
+                st.rerun()
+    with col2:
+        if st.button("Batal", width="stretch", key=f"dlg_cancel_paid_no_{plate}"):
+            st.rerun()
+
+
 @st.dialog("Sahkan Pembatalan")
 def confirm_cancel_all_dialog(count):
     st.warning(f"Anda akan membatalkan **{count}** vendor yang belum bayar.")
@@ -1794,6 +1884,37 @@ if show_section("5️⃣ Vendor Diluluskan"):
                     "Bukti": st.column_config.LinkColumn("Bukti", display_text="Buka 📄", width="small"),
                 },
             )
+
+            # ---- Cancel Vendor (Dah Bayar) ----
+            st.markdown("")
+            sub_header("🚫 Cancel Vendor (Dah Bayar)")
+            st.caption(
+                "Guna ni kalau vendor sendiri nak cancel (contoh: tak dapat hadir). "
+                "Paid akan kekal TRUE untuk rekod."
+            )
+
+            cancel_options = ["— Pilih vendor —"] + [
+                f"{row[COL_PLATE]} — {row[COL_NAME]}"
+                for _, row in vd_df.iterrows()
+            ]
+
+            cc1, cc2 = st.columns([3, 1])
+            with cc1:
+                cancel_choice = st.selectbox(
+                    "Vendor untuk cancel",
+                    options=cancel_options,
+                    key="cancel_paid_select_s5",
+                    label_visibility="collapsed",
+                )
+            with cc2:
+                if st.button("🚫 Cancel", type="primary", width="stretch",
+                             key="cancel_paid_btn_s5"):
+                    if cancel_choice and cancel_choice != "— Pilih vendor —":
+                        plate_pick = cancel_choice.split(" — ")[0]
+                        row_pick = vd_df[vd_df[COL_PLATE] == plate_pick].iloc[0]
+                        cancel_paid_dialog(plate_pick, row_pick[COL_NAME], row_pick[COL_TYPE])
+                    else:
+                        st.error("Sila pilih vendor.")
 
     st.divider()
 
