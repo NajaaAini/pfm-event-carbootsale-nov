@@ -884,7 +884,7 @@ if submitted and query:
                 # ---- Content di belakang popup ----
                 with st.container(border=True):
                     st.success("✓ **Permohonan Disahkan**")
-                    st.caption("Slot anda telah dikonfirmasi.")
+                    st.caption("Slot anda telah disahkan.")
 
                 _render_notes(row, COL_REMARK)
 
