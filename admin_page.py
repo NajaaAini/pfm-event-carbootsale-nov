@@ -1,6 +1,7 @@
 import streamlit as st
 import pandas as pd
 import re
+import io
 from streamlit_gsheets import GSheetsConnection
 from datetime import date, timedelta, datetime
 from style import apply_style
@@ -2125,14 +2126,83 @@ if show_all:
 
     st.markdown("<div style='height: 0.5rem;'></div>", unsafe_allow_html=True)
 
-    csv_all = display_df.to_csv(index=False).encode("utf-8-sig")
+    
+    # ============================================================
+    # DOWNLOAD EXCEL — 4 SHEETS
+    # ============================================================
+    excel_buffer = io.BytesIO()
+
+    # Gunakan data yang telah ditapis dalam dashboard
+    excel_df = display_df.copy()
+
+    # Kenal pasti vendor yang berstatus Approved
+    approved_mask = (
+        excel_df["Status"]
+        .astype(str)
+        .str.strip()
+        .str.casefold()
+        .eq("approved")
+    )
+
+    # Dapatkan kategori berdasarkan data asal yang telah ditapis
+    category_series = filtered_all[COL_TYPE].reset_index(drop=True)
+
+    # Pastikan susunan kategori sepadan dengan excel_df
+    approved_df = excel_df.loc[approved_mask].copy()
+    approved_categories = category_series.loc[approved_mask].reset_index(drop=True)
+
+    with pd.ExcelWriter(excel_buffer, engine="openpyxl") as writer:
+
+        # Sheet 1: Semua vendor mengikut tapisan semasa
+        excel_df.to_excel(
+            writer,
+            sheet_name="Semua Vendor",
+            index=False,
+        )
+
+        # Sheet 2: Approved Car Boot Sales
+        carboot_df = approved_df.loc[
+            approved_categories.eq("Car Boot Sales").values
+        ].copy()
+
+        carboot_df.to_excel(
+            writer,
+            sheet_name="Approved Car Boot",
+            index=False,
+        )
+
+        # Sheet 3: Approved Arts/Crafts & Others
+        arts_df = approved_df.loc[
+            approved_categories.eq("Arts/Crafts & Others").values
+        ].copy()
+
+        arts_df.to_excel(
+            writer,
+            sheet_name="Approved Arts Crafts",
+            index=False,
+        )
+
+        # Sheet 4: Approved F&B
+        fnb_df = approved_df.loc[
+            approved_categories.eq("F&B").values
+        ].copy()
+
+        fnb_df.to_excel(
+            writer,
+            sheet_name="Approved F&B",
+            index=False,
+        )
+
+    excel_buffer.seek(0)
+
     st.download_button(
-        "📥 Muat Turun CSV (Semua Vendor)",
-        data=csv_all,
-        file_name=f"vendors_{datetime.now().strftime('%Y%m%d_%H%M')}.csv",
-        mime="text/csv",
+        "📥 Muat Turun Excel",
+        data=excel_buffer.getvalue(),
+        file_name=f"vendors_{datetime.now().strftime('%Y%m%d_%H%M')}.xlsx",
+        mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
         width="content",
     )
+
 
 
 # ============================================================
