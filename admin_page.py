@@ -380,6 +380,7 @@ CAT_ARTS = "Arts/Crafts & Others"
 # ============================================================
 # REJECT TEMPLATES
 # ============================================================
+
 REJECT_TEMPLATES = {
     "Deadline bayaran lepas": (
         "Maaf, tempahan slot anda telah dibatalkan kerana bayaran tidak "
@@ -388,9 +389,13 @@ REJECT_TEMPLATES = {
         "minat anda. Semoga kita dapat bekerjasama pada event akan datang. 🙏"
     ),
     "Slot kategori penuh": (
-        "Maaf, slot untuk kategori anda telah penuh. Kami tidak dapat "
-        "menerima permohonan anda untuk event kali ini. Terima kasih "
-        "atas minat anda. 🙏"
+        "Dukacita dimaklumkan bahawa kuota vendor bagi kategori yang "
+        "dipilih telah penuh. Terima kasih atas minat dan kesudian anda "
+        "untuk menyertai kami.\n\n"
+        "Sila ikuti media sosial @pfm.events untuk mendapatkan maklumat "
+        "terkini mengenai acara akan datang dan peluang penyertaan vendor "
+        "bagi event seterusnya.\n\n"
+        "Terima kasih atas sokongan anda! ❤️"
     ),
     "Maklumat tidak lengkap": (
         "Maaf, permohonan anda tidak dapat diproses kerana maklumat yang "
@@ -398,6 +403,7 @@ REJECT_TEMPLATES = {
     ),
     "Custom (taip sendiri)": "",
 }
+
 
 
 # ============================================================
@@ -993,6 +999,7 @@ def confirm_approve_dialog(plate, vendor_name):
             st.rerun()
 
 
+
 @st.dialog("Sahkan Tindakan")
 def confirm_reject_dialog(plate, vendor_name):
     st.write("Anda akan **menolak** permohonan ini:")
@@ -1000,18 +1007,36 @@ def confirm_reject_dialog(plate, vendor_name):
 
     existing_row = df[df[COL_PLATE] == plate]
     existing_reason = ""
+
     if not existing_row.empty:
         existing_val = existing_row.iloc[0].get("Notes", "")
         if pd.notna(existing_val) and str(existing_val).strip():
             existing_reason = str(existing_val).strip()
 
-    reject_reason = st.text_area(
-        "Sebab Penolakan (vendor akan nampak)",
-        value=existing_reason,
-        placeholder="Contoh: Slot kategori anda telah penuh.",
-        height=120,
-        key=f"reject_reason_{plate}",
+    default_reject_reason = (
+        "Dukacita dimaklumkan bahawa kuota vendor bagi kategori yang "
+        "dipilih telah penuh. Terima kasih atas minat dan kesudian "
+        "anda untuk menyertai kami.\n\n"
+        "Sila ikuti media sosial @pfm.events untuk mendapatkan maklumat "
+        "terkini mengenai acara akan datang dan peluang penyertaan "
+        "vendor bagi event seterusnya.\n\n"
+        "Terima kasih atas sokongan anda! ❤️"
     )
+
+    reject_key = f"reject_reason_{plate}"
+
+    if reject_key not in st.session_state:
+        st.session_state[reject_key] = (
+            existing_reason or default_reject_reason
+        )
+
+    reject_reason = st.text_area(
+        "Sebab Penolakan",
+        height=200,
+        key=reject_key,
+    )
+
+
 
     col1, col2 = st.columns(2)
     with col1:
