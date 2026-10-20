@@ -2127,81 +2127,106 @@ if show_all:
     st.markdown("<div style='height: 0.5rem;'></div>", unsafe_allow_html=True)
 
     
+    
     # ============================================================
     # DOWNLOAD EXCEL — 4 SHEETS
     # ============================================================
+    import io
+
     excel_buffer = io.BytesIO()
 
-    # Gunakan data yang telah ditapis dalam dashboard
+    # Data untuk sheet Semua Vendor
     excel_df = display_df.copy()
 
-    # Kenal pasti vendor yang berstatus Approved
-    approved_mask = (
-        excel_df["Status"]
-        .astype(str)
-        .str.strip()
-        .str.casefold()
-        .eq("approved")
-    )
+    # Gunakan index positional supaya tidak berlaku index mismatch
+    source_df = filtered_all.reset_index(drop=True).copy()
+    export_df = excel_df.reset_index(drop=True).copy()
 
-    # Dapatkan kategori berdasarkan data asal yang telah ditapis
-    category_series = filtered_all[COL_TYPE].reset_index(drop=True)
-
-    # Pastikan susunan kategori sepadan dengan excel_df
-    approved_df = excel_df.loc[approved_mask].copy()
-    approved_categories = category_series.loc[approved_mask].reset_index(drop=True)
-
-    with pd.ExcelWriter(excel_buffer, engine="openpyxl") as writer:
-
-        # Sheet 1: Semua vendor mengikut tapisan semasa
-        excel_df.to_excel(
-            writer,
-            sheet_name="Semua Vendor",
-            index=False,
+    # Pastikan bilangan baris sepadan
+    if len(source_df) != len(export_df):
+        st.error("Ralat: Bilangan baris data eksport tidak sepadan.")
+    else:
+        # Ambil status dan kategori daripada data sumber
+        source_status = (
+            source_df["Status"]
+            .fillna("")
+            .astype(str)
+            .str.strip()
+            .str.casefold()
         )
 
-        # Sheet 2: Approved Car Boot Sales
-        carboot_df = approved_df.loc[
-            approved_categories.eq("Car Boot Sales").values
+        source_category = (
+            source_df[COL_TYPE]
+            .fillna("")
+            .astype(str)
+            .str.strip()
+            .str.casefold()
+        )
+
+        # Status Approved sahaja
+        approved_mask = source_status.eq("approved")
+
+        # Pecahkan mengikut kategori
+        carboot_df = export_df.loc[
+            (approved_mask & source_category.eq("car boot sales")).to_numpy()
         ].copy()
 
-        carboot_df.to_excel(
-            writer,
-            sheet_name="Approved Car Boot",
-            index=False,
-        )
-
-        # Sheet 3: Approved Arts/Crafts & Others
-        arts_df = approved_df.loc[
-            approved_categories.eq("Arts/Crafts & Others").values
+        arts_df = export_df.loc[
+            (approved_mask & source_category.eq("arts/crafts & others")).to_numpy()
         ].copy()
 
-        arts_df.to_excel(
-            writer,
-            sheet_name="Approved Arts Crafts",
-            index=False,
-        )
-
-        # Sheet 4: Approved F&B
-        fnb_df = approved_df.loc[
-            approved_categories.eq("F&B").values
+        fnb_df = export_df.loc[
+            (approved_mask & source_category.eq("f&b")).to_numpy()
         ].copy()
 
-        fnb_df.to_excel(
-            writer,
-            sheet_name="Approved F&B",
-            index=False,
+        with pd.ExcelWriter(
+            excel_buffer,
+            engine="openpyxl"
+        ) as writer:
+
+            # Sheet 1: Semua vendor
+            excel_df.to_excel(
+                writer,
+                sheet_name="Semua Vendor",
+                index=False,
+            )
+
+            # Sheet 2: Approved Car Boot
+            carboot_df.to_excel(
+                writer,
+                sheet_name="Approved Car Boot",
+                index=False,
+            )
+
+            # Sheet 3: Approved Arts & Crafts
+            arts_df.to_excel(
+                writer,
+                sheet_name="Approved Arts Crafts",
+                index=False,
+            )
+
+            # Sheet 4: Approved F&B
+            fnb_df.to_excel(
+                writer,
+                sheet_name="Approved F&B",
+                index=False,
+            )
+
+        excel_buffer.seek(0)
+
+        st.download_button(
+            "📥 Muat Turun Excel",
+            data=excel_buffer.getvalue(),
+            file_name=(
+                f"vendors_{datetime.now().strftime('%Y%m%d_%H%M')}.xlsx"
+            ),
+            mime=(
+                "application/vnd.openxmlformats-officedocument."
+                "spreadsheetml.sheet"
+            ),
+            width="content",
         )
 
-    excel_buffer.seek(0)
-
-    st.download_button(
-        "📥 Muat Turun Excel",
-        data=excel_buffer.getvalue(),
-        file_name=f"vendors_{datetime.now().strftime('%Y%m%d_%H%M')}.xlsx",
-        mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
-        width="content",
-    )
 
 
 
