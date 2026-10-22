@@ -702,7 +702,7 @@ if submitted and query:
         if status == "Pending":
             with st.container(border=True):
                 st.warning("⏳ **Permohonan Sedang Disemak**")
-                st.caption("Sila semak semula dalam **1-2 hari**.")
+                st.caption("Sila semak semula dalam **2-3 hari**.")
             st.caption("📌 Belum perlu bayar. Bayaran hanya selepas diluluskan.")
 
         # ---- REJECTED ----
