@@ -2047,6 +2047,14 @@ if show_all:
     display_df["Arts & Crafts Lot"] = display_df[COL_PLATE].apply(
         lambda p: get_vendor_payment_info(p)["arts_lot"] or "-")
 
+    # ============================================================
+    # TAMBAHAN: KOLUM UPLOAD BUKTI BAYARAN (PALING KANAN)
+    # ============================================================
+    display_df["Upload Bukti Bayaran"] = display_df[COL_PLATE].apply(
+        lambda p: get_vendor_payment_info(p).get("proof_url", "") or "-"
+    )
+    # ============================================================
+
     display_df["Total Price"] = display_df.apply(
         lambda r: format_rm(get_vendor_total(r[COL_TYPE], r.get(COL_ADDON, ""))), axis=1)
 
@@ -2083,7 +2091,7 @@ if show_all:
 
     priority_cols = [COL_PLATE, COL_NAME, COL_PHONE, COL_TYPE, COL_CAT,
                      "Parking Lot", "F&B Lot", "Food Truck Lot", "Arts & Crafts Lot",
-                     "Timestamp", "Total Price"]
+                     "Timestamp", "Total Price", "Upload Bukti Bayaran"]
     ordered_cols = [c for c in priority_cols if c in display_df.columns] + \
                    [c for c in display_df.columns if c not in priority_cols]
     display_df = display_df[ordered_cols]
@@ -2091,7 +2099,17 @@ if show_all:
     display_df = _df_to_str(display_df)
 
     table_height = min(max(len(display_df) * 35 + 45, 250), 600)
-    st.dataframe(display_df, hide_index=True, width="stretch", height=table_height)
+    st.dataframe(
+        display_df,
+        hide_index=True,
+        width="stretch",
+        height=table_height,
+        column_config={
+            "Upload Bukti Bayaran": st.column_config.LinkColumn(
+                "Upload Bukti Bayaran", display_text="Buka 📄", width="small"
+            ),
+        },
+    )
 
     st.markdown("<div style='height: 1rem;'></div>", unsafe_allow_html=True)
 
@@ -2352,4 +2370,3 @@ if show_section("7️⃣ ⚙️ Tindakan Admin"):
                             confirm_delete_dialog(plate, name, row_sig)
 
     st.divider()
-            
